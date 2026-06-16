@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/server.js"
+    }
+  ],
+  "env": {
+    "DATABASE_URL": "postgresql://ajeku_agro_user:l4sOUszL7UTpe70gZHzMraPJ5HL1s2pk@dpg-d8jt0csvikkc73889b00-a.oregon-postgres.render.com/ajeku_agro",
+    "NODE_ENV": "production",
+    "EMAIL_USER": "teddyogbonnaya@gmail.com",
+    "EMAIL_PASS": "&Dreamcodev1",
+    "FRONTEND_URL": "https://ajeku-mu.vercel.app",
+    "CLOUDINARY_CLOUD_NAME": "dqqxes1xo",
+    "CLOUDINARY_API_KEY": "942322874736725",
+    "CLOUDINARY_API_SECRET": "7uvqpKsfR2luTaJw3TarDc9lYyU",
+    "PAYSTACK_SECRET_KEY": "sk_test_8d46a0967b5c661345ff1cc0d24aa3f70aa624fb"
+  }
+}
