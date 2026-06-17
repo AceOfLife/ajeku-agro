@@ -6,22 +6,10 @@ module.exports = (sequelize, DataTypes) => {
     client_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      references: {
-        model: 'Clients', // Keep as Clients (investors)
-        key: 'id',
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'CASCADE',
     },
-    farm_id: {  // was property_id
+    farm_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      references: {
-        model: 'Farms',  // was Properties
-        key: 'id',
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'CASCADE',
     },
     appointment_date: {
       type: DataTypes.DATE,
@@ -31,7 +19,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('scheduled', 'completed', 'canceled'),
       allowNull: false,
     },
-    // NEW: Farm visit specific fields
     visit_type: {
       type: DataTypes.ENUM('Site Inspection', 'Harvest Viewing', 'Manager Meeting', 'Due Diligence'),
       allowNull: true,
@@ -43,11 +30,11 @@ module.exports = (sequelize, DataTypes) => {
   }, {});
 
   FarmAppointment.associate = function(models) {
-    FarmAppointment.belongsTo(models.Client, {
+    FarmAppointment.belongsTo(models.Investor, {
       foreignKey: 'client_id',
       as: 'client',
     });
-    FarmAppointment.belongsTo(models.Farm, {  // was Property
+    FarmAppointment.belongsTo(models.Farm, {
       foreignKey: 'farm_id',
       as: 'farm',
     });
