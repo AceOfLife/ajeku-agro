@@ -33,7 +33,7 @@ module.exports = {
       property_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Properties',
+          model: 'Farms',
           key: 'id',
         },
         onUpdate: 'CASCADE',

@@ -3,39 +3,61 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    // Add relist fields to FarmUnitOwnerships (was FractionalOwnerships)
-    await queryInterface.addColumn('FarmUnitOwnerships', 'is_relisted', {
-      type: Sequelize.BOOLEAN,
-      defaultValue: false
-    });
+    const farmUnitTable = await queryInterface.describeTable('FarmUnitOwnerships');
+    const farmsTable = await queryInterface.describeTable('Farms');
 
-    await queryInterface.addColumn('FarmUnitOwnerships', 'relist_price', {
-      type: Sequelize.FLOAT,
-      allowNull: true
-    });
+    // Add relist fields to FarmUnitOwnerships
+    if (!farmUnitTable.is_relisted) {
+      await queryInterface.addColumn('FarmUnitOwnerships', 'is_relisted', {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      });
+    }
 
-    // Add relist fields to Farms (was Properties)
-    await queryInterface.addColumn('Farms', 'is_relisted', {
-      type: Sequelize.BOOLEAN,
-      defaultValue: false
-    });
+    if (!farmUnitTable.relist_price) {
+      await queryInterface.addColumn('FarmUnitOwnerships', 'relist_price', {
+        type: Sequelize.FLOAT,
+        allowNull: true
+      });
+    }
 
-    await queryInterface.addColumn('Farms', 'original_owner_id', {
-      type: Sequelize.INTEGER,
-      allowNull: true,
-      references: {
-        model: 'Users',
-        key: 'id'
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'SET NULL'
-    });
+    // Add relist fields to Farms
+    if (!farmsTable.is_relisted) {
+      await queryInterface.addColumn('Farms', 'is_relisted', {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      });
+    }
+
+    if (!farmsTable.original_owner_id) {
+      await queryInterface.addColumn('Farms', 'original_owner_id', {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'Users',
+          key: 'id'
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL'
+      });
+    }
   },
 
   down: async (queryInterface) => {
-    await queryInterface.removeColumn('FarmUnitOwnerships', 'is_relisted');
-    await queryInterface.removeColumn('FarmUnitOwnerships', 'relist_price');
-    await queryInterface.removeColumn('Farms', 'is_relisted');
-    await queryInterface.removeColumn('Farms', 'original_owner_id');
+    const farmUnitTable = await queryInterface.describeTable('FarmUnitOwnerships');
+    const farmsTable = await queryInterface.describeTable('Farms');
+
+    if (farmUnitTable.is_relisted) {
+      await queryInterface.removeColumn('FarmUnitOwnerships', 'is_relisted');
+    }
+    if (farmUnitTable.relist_price) {
+      await queryInterface.removeColumn('FarmUnitOwnerships', 'relist_price');
+    }
+    if (farmsTable.is_relisted) {
+      await queryInterface.removeColumn('Farms', 'is_relisted');
+    }
+    if (farmsTable.original_owner_id) {
+      await queryInterface.removeColumn('Farms', 'original_owner_id');
+    }
   }
 };

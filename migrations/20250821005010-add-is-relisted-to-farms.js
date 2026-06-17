@@ -3,14 +3,20 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn('Farms', 'is_relisted', {
-      type: Sequelize.BOOLEAN,
-      allowNull: false,
-      defaultValue: false
-    });
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (!tableDescription.is_relisted) {
+      await queryInterface.addColumn('Farms', 'is_relisted', {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      });
+    }
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.removeColumn('Farms', 'is_relisted');
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (tableDescription.is_relisted) {
+      await queryInterface.removeColumn('Farms', 'is_relisted');
+    }
   }
 };

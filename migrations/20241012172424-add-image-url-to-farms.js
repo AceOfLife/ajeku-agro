@@ -3,14 +3,20 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    // Add to Farms table instead of Properties
-    await queryInterface.addColumn('Farms', 'cover_image_url', {
-      type: Sequelize.STRING,
-      allowNull: true,
-    });
+    // Check if column exists before adding
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (!tableDescription.cover_image_url) {
+      await queryInterface.addColumn('Farms', 'cover_image_url', {
+        type: Sequelize.STRING,
+        allowNull: true,
+      });
+    }
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.removeColumn('Farms', 'cover_image_url');
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (tableDescription.cover_image_url) {
+      await queryInterface.removeColumn('Farms', 'cover_image_url');
+    }
   }
 };

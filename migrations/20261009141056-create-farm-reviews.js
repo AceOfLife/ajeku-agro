@@ -3,9 +3,14 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    // Create ENUMs
+    // Check if ENUM exists before creating - using lowercase name
     await queryInterface.sequelize.query(`
-      CREATE TYPE "enum_FarmReviews_category" AS ENUM('Crop Quality', 'Harvest Experience', 'Management', 'Communication', 'Returns');
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_farmreviews_category') THEN
+          CREATE TYPE "enum_farmreviews_category" AS ENUM('Crop Quality', 'Harvest Experience', 'Management', 'Communication', 'Returns');
+        END IF;
+      END $$;
     `);
 
     await queryInterface.createTable('FarmReviews', {
@@ -15,28 +20,28 @@ module.exports = {
         primaryKey: true,
         type: Sequelize.INTEGER,
       },
-      investor_id: {  // was client_id
+      investor_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Investors',  // was Clients
+          model: 'Investors',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      farm_id: {  // was property_id
+      farm_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Farms',  // was Properties
+          model: 'Farms',
           key: 'id',
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE',
       },
-      farm_manager_id: {  // was agent_id
+      farm_manager_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'FarmManagers',  // was Agents
+          model: 'FarmManagers',
           key: 'id',
         },
         onUpdate: 'CASCADE',
@@ -50,11 +55,11 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: true,
       },
-      category: {  // ADDED
-        type: Sequelize.ENUM('Crop Quality', 'Harvest Experience', 'Management', 'Communication', 'Returns'),
+      category: {
+        type: "enum_farmreviews_category",
         allowNull: true,
       },
-      harvest_cycle_id: {  // ADDED
+      harvest_cycle_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
         references: {
@@ -75,5 +80,6 @@ module.exports = {
 
   down: async (queryInterface, Sequelize) => {
     await queryInterface.dropTable('FarmReviews');
+    await queryInterface.sequelize.query(`DROP TYPE IF EXISTS "enum_farmreviews_category";`);
   },
 };

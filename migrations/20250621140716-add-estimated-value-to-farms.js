@@ -3,14 +3,20 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('Farms', 'farm_valuation', {  // was estimated_value
-      type: Sequelize.FLOAT,
-      allowNull: true,
-      comment: 'Total farm valuation (replaces estimated_value)',
-    });
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (!tableDescription.farm_valuation) {
+      await queryInterface.addColumn('Farms', 'farm_valuation', {
+        type: Sequelize.FLOAT,
+        allowNull: true,
+        comment: 'Total farm valuation (replaces estimated_value)',
+      });
+    }
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.removeColumn('Farms', 'farm_valuation');
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (tableDescription.farm_valuation) {
+      await queryInterface.removeColumn('Farms', 'farm_valuation');
+    }
   }
 };

@@ -3,14 +3,20 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('FarmInstallmentPayments', 'payment_date', {
-      type: Sequelize.DATE,
-      allowNull: false,
-      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
-    });
+    const tableDescription = await queryInterface.describeTable('FarmInstallmentPayments');
+    if (!tableDescription.payment_date) {
+      await queryInterface.addColumn('FarmInstallmentPayments', 'payment_date', {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+      });
+    }
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.removeColumn('FarmInstallmentPayments', 'payment_date');
+    const tableDescription = await queryInterface.describeTable('FarmInstallmentPayments');
+    if (tableDescription.payment_date) {
+      await queryInterface.removeColumn('FarmInstallmentPayments', 'payment_date');
+    }
   }
 };

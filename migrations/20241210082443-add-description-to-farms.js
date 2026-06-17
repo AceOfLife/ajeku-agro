@@ -3,14 +3,19 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    // Add description to Farms table (was Properties)
-    await queryInterface.addColumn('Farms', 'description', {
-      type: Sequelize.TEXT,  // Changed to TEXT for longer descriptions
-      allowNull: true,
-    });
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (!tableDescription.description) {
+      await queryInterface.addColumn('Farms', 'description', {
+        type: Sequelize.TEXT,
+        allowNull: true,
+      });
+    }
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.removeColumn('Farms', 'description');
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (tableDescription.description) {
+      await queryInterface.removeColumn('Farms', 'description');
+    }
   }
 };

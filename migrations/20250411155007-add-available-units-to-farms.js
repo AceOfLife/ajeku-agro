@@ -3,15 +3,21 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('Farms', 'available_units', {
-      type: Sequelize.INTEGER,
-      allowNull: true,
-      defaultValue: null,
-      comment: 'Units still available for purchase (replaces available_slots)',
-    });
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (!tableDescription.available_units) {
+      await queryInterface.addColumn('Farms', 'available_units', {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        defaultValue: null,
+        comment: 'Units still available for purchase (replaces available_slots)',
+      });
+    }
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.removeColumn('Farms', 'available_units');
+    const tableDescription = await queryInterface.describeTable('Farms');
+    if (tableDescription.available_units) {
+      await queryInterface.removeColumn('Farms', 'available_units');
+    }
   }
 };
