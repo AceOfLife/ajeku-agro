@@ -4,6 +4,7 @@ const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
 const { upload, uploadImagesToCloudinary} = require('../config/multerConfig');
 const { Op } = require('sequelize');
+// This is a new commit for FarmController.js
 
 const uploadDocumentToCloudinary = async (fileBuffer, fileName) => {
     try {
