@@ -11,16 +11,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       references: { model: 'Users', key: 'id' }
     },
-    farm_id: {  // was property_id (keep property_id for backward compatibility?)
+    farm_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
-      references: { model: 'Farms', key: 'id' }  // was Properties
-    },
-    // Keep property_id for backward compatibility during transition
-    property_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: { model: 'Properties', key: 'id' }
+      references: { model: 'Farms', key: 'id' }
     },
     client_id: {
       type: DataTypes.INTEGER,
@@ -48,10 +42,9 @@ module.exports = (sequelize, DataTypes) => {
         'fractionalInstallment',
         'installment',
         'rental',
-        // NEW: Farm-specific payment types
-        'farm_unit',           // Purchase of farm units
-        'farm_installment',    // Installment for farm units
-        'harvest_payout'       // Harvest revenue distribution
+        'farm_unit',
+        'farm_installment',
+        'harvest_payout'
       ),
       allowNull: false
     },
@@ -59,13 +52,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: false
     },
-    // NEW: Track harvest cycle for harvest payout transactions
     harvest_cycle_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: { model: 'HarvestCycles', key: 'id' }
     },
-    // NEW: Track units purchased
     units_purchased: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
@@ -83,14 +74,9 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'user_id',
       as: 'user'
     });
-    Transaction.belongsTo(models.Farm, {  // was Property
+    Transaction.belongsTo(models.Farm, { 
       foreignKey: 'farm_id',
       as: 'farm'
-    });
-    // Keep property association for backward compatibility
-    Transaction.belongsTo(models.Property, { 
-      foreignKey: 'property_id',
-      as: 'property'
     });
     Transaction.belongsTo(models.User, {
       foreignKey: 'client_id',
