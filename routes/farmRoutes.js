@@ -11,7 +11,6 @@ router.get('/recent', FarmController.getRecentFarms);
 router.get('/most-viewed', FarmController.getMostViewedFarms);
 router.get('/assemblage', FarmController.getAssemblage);
 router.get('/relisted', FarmController.getRelistedFarms);
-router.get('/:id', FarmController.getFarmById);
 router.get('/:farm_id/units', authenticate, FarmController.getFarmUnits);
 
 // Admin only routes
@@ -23,6 +22,7 @@ router.put('/:id/valuation', authenticate, authorizeAdmin, FarmController.update
 
 // User farm routes
 router.get('/user/my-farms', authenticate, FarmController.getUserFarms);
+router.get('/:id', FarmController.getFarmById);
 
 // Analytics routes
 router.get('/analytics/:farmId', authenticate, FarmController.getFarmAnalytics);
