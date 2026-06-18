@@ -50,7 +50,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     role: {
-      type: DataTypes.STRING,  // Changed from ENUM
+      type: DataTypes.ENUM('admin', 'agent', 'client', 'farm_manager', 'investor'),  // Added farm_manager, investor
       defaultValue: 'client',
     },
     profileImage: {
@@ -64,15 +64,19 @@ module.exports = (sequelize, DataTypes) => {
       field: 'referralSource'
     },
     gender: {
-      type: DataTypes.STRING,  // Changed from ENUM
-      allowNull: true,
+      type: DataTypes.STRING, 
+      allowNull: true, 
+      validate: {
+        isIn: [['male', 'female', 'other']],
+      },
     },
+    // NEW: Farm-specific user preferences
     default_delivery_region: {
       type: DataTypes.STRING,
       allowNull: true,
     },
     default_produce_preference: {
-      type: DataTypes.STRING,  // Changed from ENUM
+      type: DataTypes.ENUM('sell', 'take_physical'),
       defaultValue: 'sell',
     },
   }, {
@@ -92,7 +96,7 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'user_id', 
       as: 'transactions' 
     });
-    User.hasMany(models.Farm, { 
+    User.hasMany(models.Farm, {  // was Property
       foreignKey: 'manager_id', 
       as: 'managed_farms' 
     });
@@ -101,13 +105,13 @@ module.exports = (sequelize, DataTypes) => {
       as: 'documents',
       onDelete: 'CASCADE'
     });
-    User.hasOne(models.Investor, {
+    User.hasOne(models.Investor, {  // was Client
       foreignKey: 'user_id',
       as: 'investor',
       onDelete: 'CASCADE',
       hooks: true
     });
-    User.hasOne(models.FarmManager, {
+    User.hasOne(models.FarmManager, {  // NEW
       foreignKey: 'user_id',
       as: 'farmManager',
       onDelete: 'CASCADE',
@@ -117,10 +121,12 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'user_id',
       as: 'notifications'
     });
+    // NEW: Harvest allocations for this user
     User.hasMany(models.HarvestAllocation, {
       foreignKey: 'investor_id',
       as: 'harvestAllocations'
     });
+    // NEW: Produce preferences
     User.hasMany(models.InvestorProducePreference, {
       foreignKey: 'investor_id',
       as: 'producePreferences'
