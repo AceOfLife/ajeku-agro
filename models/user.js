@@ -51,7 +51,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     role: {
       type: DataTypes.STRING,  // Changed from ENUM
-      defaultValue: 'client',
+      defaultValue: 'investor',
     },
     profileImage: {
       type: DataTypes.STRING,

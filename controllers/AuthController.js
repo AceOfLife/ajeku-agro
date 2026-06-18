@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken'); // Import JWT for token generation
 require('dotenv').config(); // Load environment variables
 
 // User login
+// User login
 const login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -23,26 +24,35 @@ const login = async (req, res) => {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
-    // Generate a JWT token (including the user's role)
+    // Generate a JWT token
     const token = jwt.sign(
       { 
-        id: user.id, 
-        name: user.name, 
-        email: user.email,  // Ensure email is in the token for future use
-        role: user.role,
+        userId: user.id, 
+        role: user.role 
       },
-      process.env.JWT_SECRET, // Use the secret from environment variables
-      { expiresIn: '1h' } // Token expiration time
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
     );
 
-    // Return the token and user details (including role)
+    // Return the token and user details (matching Ajeku Realty format)
     res.json({
       token,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role // Include the user's role
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        address: user.address,
+        contactNumber: user.contactNumber,
+        city: user.city,
+        state: user.state,
+        profileImage: user.profileImage,
+        gender: user.gender,
+        referralSource: user.referralSource,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
       }
     });
 
@@ -70,12 +80,28 @@ const signup = async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role
+      role: role || 'client'
     });
 
-    // Send the new user as a response
-    res.status(201).json(newUser);
+    // Generate JWT token (matching Ajeku Realty format)
+    const token = jwt.sign(
+      { 
+        userId: newUser.id, 
+        role: newUser.role 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // Return the same response format as Ajeku Realty
+    res.status(201).json({
+      message: 'User created successfully',
+      token: token,
+      user: newUser
+    });
+
   } catch (error) {
+    console.error('Signup error:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 };
