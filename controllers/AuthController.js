@@ -27,7 +27,7 @@ const login = async (req, res) => {
     // Generate a JWT token
     const token = jwt.sign(
       { 
-        userId: userId, 
+        id: user.id, 
         role: user.role 
       },
       process.env.JWT_SECRET,
@@ -38,7 +38,7 @@ const login = async (req, res) => {
     res.json({
       token,
       user: {
-        id: userId,
+        id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
@@ -86,7 +86,7 @@ const signup = async (req, res) => {
     // Generate JWT token (matching Ajeku Realty format)
     const token = jwt.sign(
       { 
-        userId: newUser.id, 
+        id: newUser.id, 
         role: newUser.role 
       },
       process.env.JWT_SECRET,
