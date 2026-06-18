@@ -101,7 +101,7 @@ exports.createFarm = async (req, res) => {
         farm_manager, soil_type, irrigation_method, physical_delivery_offered,
         delivery_regions, price_per_unit, total_units_available, farm_valuation,
         is_fractional, isInstallment, isFractionalInstallment, isFractionalDuration,
-        percentage, duration, monthly_expense
+        percentage, duration, monthly_expense, manager_id
       } = req.body;
 
       const parsedFractional = ["true", "1", true].includes(is_fractional);
@@ -143,6 +143,7 @@ exports.createFarm = async (req, res) => {
         expected_yield_per_unit_kg: parseFloat(expected_yield_per_unit_kg) || 0,
         expected_value_per_kg: parseFloat(expected_value_per_kg) || 0,
         farm_manager: farm_manager || "",
+        manager_id: manager_id || null,
         soil_type: soil_type || "",
         irrigation_method: irrigation_method || "",
         physical_delivery_offered: ["true", "1", true].includes(physical_delivery_offered),
