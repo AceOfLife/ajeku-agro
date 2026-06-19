@@ -1,4 +1,4 @@
-const { HarvestCycle, HarvestAllocation, Farm, FarmUnitOwnership, User, InvestorProducePreference, Investor, Notification, sequelize } = require('../models');
+const { HarvestCycle, HarvestAllocation, Farm, FarmUnitOwnership, User, InvestorProducePreference,  Notification, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 exports.getHarvestCyclesByFarm = async (req, res) => {
