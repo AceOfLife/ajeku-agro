@@ -442,3 +442,96 @@ exports.updateDeliveryStatus = async (req, res) => {
     res.status(500).json({ message: 'Error updating delivery status', error });
   }
 };
+
+// controllers/paymentController.js - Add at the bottom
+
+exports.updateProducePreference = async (req, res) => {
+  try {
+    const { investor_id, farm_id, harvest_cycle_id, preference, delivery_address, delivery_region } = req.body;
+    const userId = req.user.id;
+
+    // Import Investor model if not already imported
+    const { Investor, InvestorProducePreference, HarvestCycle, Notification } = require('../models');
+
+    // Find the investor
+    const investor = await Investor.findOne({
+      where: { user_id: userId, id: investor_id }
+    });
+
+    if (!investor) {
+      return res.status(404).json({ message: 'Investor not found' });
+    }
+
+    // Check if harvest cycle exists and is not locked
+    if (harvest_cycle_id) {
+      const harvestCycle = await HarvestCycle.findByPk(harvest_cycle_id);
+      if (!harvestCycle) {
+        return res.status(404).json({ message: 'Harvest cycle not found' });
+      }
+
+      const now = new Date();
+      const lockDate = new Date(harvestCycle.preference_lock_date);
+      
+      if (now >= lockDate) {
+        return res.status(400).json({ 
+          message: 'Preference lock date has passed. Cannot change preference for this harvest cycle.' 
+        });
+      }
+    }
+
+    // Find or create preference
+    const [preferenceRecord, created] = await InvestorProducePreference.findOrCreate({
+      where: {
+        investor_id,
+        farm_id,
+        harvest_cycle_id: harvest_cycle_id || null
+      },
+      defaults: {
+        investor_id,
+        farm_id,
+        harvest_cycle_id: harvest_cycle_id || null,
+        preference,
+        delivery_address: preference === 'take_physical' ? delivery_address : null,
+        delivery_region: preference === 'take_physical' ? delivery_region : null,
+        is_locked: false
+      }
+    });
+
+    if (!created) {
+      preferenceRecord.preference = preference;
+      preferenceRecord.delivery_address = preference === 'take_physical' ? delivery_address : null;
+      preferenceRecord.delivery_region = preference === 'take_physical' ? delivery_region : null;
+      await preferenceRecord.save();
+    }
+
+    // Send notification
+    const io = req.app.get('socketio');
+    const notification = await Notification.create({
+      user_id: userId,
+      title: 'Produce Preference Updated',
+      message: `Your produce preference has been updated to ${preference === 'sell' ? 'Sell Produce' : 'Take Physical Produce'}`,
+      type: 'produce_preference',
+      related_entity_id: farm_id,
+      metadata: {
+        preference,
+        harvest_cycle_id
+      }
+    });
+
+    if (io) {
+      io.to(`user_${userId}`).emit('new_notification', {
+        event: 'preference_updated',
+        data: notification
+      });
+    }
+
+    res.status(200).json({
+      message: 'Produce preference updated successfully',
+      preference: preferenceRecord
+    });
+
+  } catch (error) {
+    console.error('Error updating produce preference:', error);
+    res.status(500).json({ message: 'Error updating produce preference', error });
+  }
+};
