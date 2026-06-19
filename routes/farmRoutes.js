@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const FarmController = require('../controllers/FarmController');
+const RelistController = require('../controllers/RelistController');
 const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware');
 const { upload } = require('../config/multerConfig');
 
@@ -14,6 +15,12 @@ router.get('/relisted', FarmController.getRelistedFarms);
 router.get('/', authenticate, FarmController.getAllFarms);
 router.get('/filter', authenticate, FarmController.getFilteredFarms);
 router.get('/user/my-farms', authenticate, FarmController.getUserFarms);
+
+// ===== RELISTING ROUTES =====
+router.get('/:farmId/can-relist', authenticate, RelistController.checkRelistEligibility);
+router.post('/:farmId/relist', authenticate, RelistController.relistFarm);
+router.post('/:farmId/relist-units', authenticate, RelistController.relistFarmUnits);
+router.get('/:farmId/relisted-units', RelistController.getRelistedFarmUnits);
 
 // ===== ANALYTICS - Static Route First =====
 router.get('/analytics/top-performing', authenticate, FarmController.getTopPerformingFarm);
