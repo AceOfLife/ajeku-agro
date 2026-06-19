@@ -12,10 +12,9 @@ const { authenticate, authorizeAdmin } = require("../middlewares/authMiddleware"
 // User's personal transaction history
 router.get("/my-history", authenticate, getUserTransactionHistory);
 
-// Existing routes
-router.post("/create", createTransaction);
-router.get("/", authorizeAdmin, getAllTransactions); // Assuming only admin can see all
-router.get("/:id", getTransactionById);
+// Admin only routes
+router.post("/create", authenticate, authorizeAdmin, createTransaction);
+router.get("/", authenticate, authorizeAdmin, getAllTransactions);
+router.get("/:id", authenticate, authorizeAdmin, getTransactionById);
 
 module.exports = router;
-
