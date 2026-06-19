@@ -8,7 +8,6 @@ const {
   getFarmInstallmentStatus, 
   getUserFarmInstallments,
   processHarvestPayout,
-  updateProducePreference
 } = require("../controllers/paymentController");
 
 router.get("/verify-payment", verifyPayment);
