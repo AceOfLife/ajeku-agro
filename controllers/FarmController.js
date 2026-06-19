@@ -1471,49 +1471,50 @@ exports.getUserFarmsAnalytics = async (req, res) => {
 };
 
 exports.getRelistedFarms = async (req, res) => {
-    try {
-        const relistedFarms = await Farm.findAll({
-            where: { is_relisted: true },
-            include: [
-                {
-                    model: FarmImage,
-                    as: 'images',
-                    attributes: ['image_url']
-                },
-                {
-                    model: FarmUnitOwnership,
-                    where: { is_relisted: true },
-                    required: false
-                }
-            ],
-            order: [['updatedAt', 'DESC']]
-        });
+  try {
+    const relistedFarms = await Farm.findAll({
+      where: { is_relisted: true },
+      include: [
+        {
+          model: FarmImage,
+          as: 'images',
+          attributes: ['image_url']
+        },
+        {
+          model: FarmUnitOwnership,
+          as: 'unitOwnerships',  // ← ADD THE 'as' ALIAS
+          where: { is_relisted: true },
+          required: false
+        }
+      ],
+      order: [['updatedAt', 'DESC']]
+    });
 
-        const farmsWithUnits = await Promise.all(
-            relistedFarms.map(async farm => {
-                if (farm.is_fractional) {
-                    const purchasedUnits = await FarmUnitOwnership.sum('units_purchased', {
-                        where: { farm_id: farm.id }
-                    });
-                    farm.dataValues.available_units = farm.total_units_available - (purchasedUnits || 0);
-                }
-                return farm;
-            })
-        );
+    const farmsWithUnits = await Promise.all(
+      relistedFarms.map(async farm => {
+        if (farm.is_fractional) {
+          const purchasedUnits = await FarmUnitOwnership.sum('units_purchased', {
+            where: { farm_id: farm.id }
+          });
+          farm.dataValues.available_units = farm.total_units_available - (purchasedUnits || 0);
+        }
+        return farm;
+      })
+    );
 
-        res.status(200).json({
-            success: true,
-            count: relistedFarms.length,
-            farms: farmsWithUnits
-        });
-    } catch (error) {
-        console.error('Error fetching relisted farms:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch relisted farms',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
+    res.status(200).json({
+      success: true,
+      count: relistedFarms.length,
+      farms: farmsWithUnits
+    });
+  } catch (error) {
+    console.error('Error fetching relisted farms:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch relisted farms',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
 };
 
 exports.getAssemblage = async (req, res) => {
