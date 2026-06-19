@@ -22,4 +22,7 @@ router.get('/:harvestCycleId/my-allocation', authenticate, HarvestController.get
 router.put('/allocations/:allocationId/payout', authenticate, authorizeAdmin, HarvestController.markPayoutComplete);
 router.put('/allocations/:allocationId/delivery', authenticate, authorizeAdmin, HarvestController.updateDeliveryStatus);
 
+// NEW: Produce preference routes
+router.put('/produce-preference', authenticate, HarvestController.updateProducePreference);
+
 module.exports = router;
