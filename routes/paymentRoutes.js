@@ -20,5 +20,8 @@ router.get("/my-installments/:userId", authenticate, getUserFarmInstallments);
 // NEW: Harvest payout routes
 router.post("/harvest/:harvest_cycle_id/payout", authenticate, processHarvestPayout);
 
+// NEW: Produce preference routes
+router.put("/produce-preference", authenticate, updateProducePreference);
+
 
 module.exports = router;
