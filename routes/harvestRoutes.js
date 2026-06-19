@@ -6,6 +6,9 @@ const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware'
 // Get all harvest cycles for a farm
 router.get('/farm/:farmId', authenticate, HarvestController.getHarvestCyclesByFarm);
 
+// NEW: Produce preference routes
+router.put('/produce-preference', authenticate, HarvestController.updateProducePreference);
+
 // Get a specific harvest cycle
 router.get('/:harvestCycleId', authenticate, HarvestController.getHarvestCycleById);
 
@@ -22,7 +25,6 @@ router.get('/:harvestCycleId/my-allocation', authenticate, HarvestController.get
 router.put('/allocations/:allocationId/payout', authenticate, authorizeAdmin, HarvestController.markPayoutComplete);
 router.put('/allocations/:allocationId/delivery', authenticate, authorizeAdmin, HarvestController.updateDeliveryStatus);
 
-// NEW: Produce preference routes
-router.put('/produce-preference', authenticate, HarvestController.updateProducePreference);
+
 
 module.exports = router;
