@@ -23,4 +23,5 @@ router.post("/harvest/:harvest_cycle_id/payout", authenticate, processHarvestPay
 // NEW: Produce preference routes
 router.put("/produce-preference", authenticate, updateProducePreference);
 
+
 module.exports = router;
