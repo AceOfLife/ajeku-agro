@@ -342,8 +342,8 @@ exports.getRelistedFarmUnits = async (req, res) => {
       include: [
         {
           model: User,
-          attributes: ['id', 'name', 'email', 'contactNumber'],
-          as: 'owner'
+          attributes: ['id', 'name', 'email', 'contactNumber']
+          // Removed 'as: owner'
         }
       ],
       order: [['relist_price', 'ASC']]
