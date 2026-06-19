@@ -139,8 +139,18 @@ exports.relistFarm = async (req, res) => {
 exports.relistFarmUnits = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { farmId, unitIds, pricePerUnit } = req.body;
+    const { farmId } = req.params;  // ← FROM URL PARAM
+    const { unitIds, pricePerUnit } = req.body;  // ← FROM BODY
     const userId = req.user.id;
+
+    // Validate farmId
+    if (!farmId) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "farmId is required in the URL"
+      });
+    }
 
     if (!Array.isArray(unitIds) || unitIds.length === 0 || !pricePerUnit || pricePerUnit <= 0) {
       await t.rollback();
@@ -154,7 +164,7 @@ exports.relistFarmUnits = async (req, res) => {
       where: {
         id: { [Op.in]: unitIds },
         user_id: userId,
-        farm_id: farmId,
+        farm_id: parseInt(farmId),
         units_purchased: { [Op.gt]: 0 }
       },
       transaction: t
@@ -202,11 +212,11 @@ exports.relistFarmUnits = async (req, res) => {
         title: 'Farm Units Relisted',
         message: `You've successfully relisted ${unitIds.length} unit(s) in ${farm.name}`,
         type: 'payment',
-        related_entity_id: farmId,
+        related_entity_id: parseInt(farmId),
         metadata: {
           unit_ids: unitIds,
           price_per_unit: pricePerUnit,
-          farm_id: farmId,
+          farm_id: parseInt(farmId),
           action: 'relist'
         }
       }, { transaction: t });
@@ -223,12 +233,12 @@ exports.relistFarmUnits = async (req, res) => {
             title: 'New Farm Units Relisted',
             message: `User ${user.email} relisted ${unitIds.length} unit(s) in ${farm.name}`,
             type: 'admin_alert',
-            related_entity_id: farmId,
+            related_entity_id: parseInt(farmId),
             metadata: {
               user_id: userId,
               unit_ids: unitIds,
               price_per_unit: pricePerUnit,
-              farm_id: farmId,
+              farm_id: parseInt(farmId),
               action: 'relist'
             }
           }, { transaction: t })
