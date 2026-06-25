@@ -188,6 +188,7 @@ module.exports = (sequelize, DataTypes) => {
     Farm.hasMany(models.FarmUnit, { foreignKey: 'farm_id', as: 'farmUnits' });
     Farm.hasMany(models.HarvestCycle, { foreignKey: 'farm_id', as: 'harvestCycles' });
     Farm.hasMany(models.InvestorProducePreference, { foreignKey: 'farm_id', as: 'producePreferences' });
+    Farm.hasMany(models.FarmCrop, {foreignKey: 'farm_id', as: 'crops' });
   };
 
   return Farm;

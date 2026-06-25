@@ -1,4 +1,4 @@
-const { Farm, User, FarmImage, FarmUnitOwnership, FarmInstallmentOwnership, Transaction, sequelize } = require('../models');
+const { Farm, User, FarmImage, FarmUnitOwnership, FarmInstallmentOwnership, Transaction, FarmCrop, sequelize } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
@@ -100,7 +100,7 @@ exports.createFarm = async (req, res) => {
                 farm_manager, soil_type, irrigation_method, physical_delivery_offered,
                 delivery_regions, price_per_unit, total_units_available, farm_valuation,
                 is_fractional, isInstallment, isFractionalInstallment, isFractionalDuration,
-                percentage, duration, monthly_expense, manager_id
+                percentage, duration, monthly_expense, manager_id, crops
             } = req.body;
 
             const parsedFractional = ["true", "1", true].includes(is_fractional);
@@ -136,6 +136,7 @@ exports.createFarm = async (req, res) => {
                 unit_size: parseFloat(unit_size) || 0,
                 crop_type: crop_type || "",
                 crop_description: crop_description || "",
+                supports_multiple_crops: crops && crops.length > 1 ? true : false,
                 planting_date: planting_date ? new Date(planting_date) : null,
                 expected_harvest_date: expected_harvest_date ? new Date(expected_harvest_date) : null,
                 harvest_cycle_months: parseInt(harvest_cycle_months, 10) || 0,
@@ -164,7 +165,36 @@ exports.createFarm = async (req, res) => {
 
             const newFarm = await Farm.create(newFarmData);
 
-            const farm = await Farm.findByPk(newFarm.id);
+            if (crops && crops.length > 0) {
+                const cropsData = crops.map(crop => ({
+                    farm_id: newFarm.id,
+                    crop_type: crop.crop_type,
+                    crop_description: crop.crop_description || null,
+                    area_allocated: crop.area_allocated || null,
+                    planting_date: crop.planting_date ? new Date(crop.planting_date) : null,
+                    expected_harvest_date: crop.expected_harvest_date ? new Date(crop.expected_harvest_date) : null,
+                    harvest_cycle_months: crop.harvest_cycle_months || null,
+                    expected_yield_per_unit_kg: crop.expected_yield_per_unit_kg || null,
+                    expected_value_per_kg: crop.expected_value_per_kg || null,
+                    is_primary: crop.is_primary || false,
+                }));
+
+                if (cropsData.some(c => c.is_primary) === false && cropsData.length > 0) {
+                    cropsData[0].is_primary = true;
+                }
+
+                await FarmCrop.bulkCreate(cropsData);
+            }
+
+            const farm = await Farm.findByPk(newFarm.id, {
+                include: [
+                    {
+                        model: FarmCrop,
+                        as: 'crops',
+                        attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    }
+                ]
+            });
 
             let imageUrls = [];
             if (req.files && req.files.length > 0) {
@@ -186,7 +216,7 @@ exports.createFarm = async (req, res) => {
             });
 
             res.status(201).json({
-                farm: newFarm,
+                farm: farm,
                 images: savedImageRecord?.image_url || [],
                 documentUrl: null
             });
@@ -209,7 +239,16 @@ exports.updateFarm = async (req, res) => {
         });
 
         if (updated) {
-            const updatedFarm = await Farm.findOne({ where: { id } });
+            const updatedFarm = await Farm.findOne({
+                where: { id },
+                include: [
+                    {
+                        model: FarmCrop,
+                        as: 'crops',
+                        attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    }
+                ]
+            });
             return res.status(200).json(updatedFarm);
         }
 
@@ -272,6 +311,11 @@ exports.getAllFarms = async (req, res) => {
                     model: FarmImage,
                     as: 'images',
                     attributes: ['image_url']
+                },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
                 }
             ]
         });
@@ -335,7 +379,14 @@ exports.getFarmById = async (req, res) => {
 
         const farm = await Farm.findOne({
             where: { id },
-            include: [{ model: FarmImage, as: 'images' }]
+            include: [
+                { model: FarmImage, as: 'images' },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                }
+            ]
         });
 
         if (!farm) {
@@ -469,7 +520,14 @@ exports.getFilteredFarms = async (req, res) => {
 
         const farms = await Farm.findAll({
             where: filter,
-            include: [{ model: FarmImage, as: 'images' }],
+            include: [
+                { model: FarmImage, as: 'images' },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                }
+            ],
         });
 
         console.log("Query result:", farms);
@@ -558,7 +616,14 @@ exports.getRecentFarms = async (req, res) => {
         const farms = await Farm.findAll({
             order: [['createdAt', 'DESC']],
             limit: 6,
-            include: [{ model: FarmImage, as: 'images' }]
+            include: [
+                { model: FarmImage, as: 'images' },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                }
+            ]
         });
 
         res.status(200).json({ farms });
@@ -573,7 +638,14 @@ exports.getMostViewedFarms = async (req, res) => {
         const farms = await Farm.findAll({
             order: [['views', 'DESC']],
             limit: 6,
-            include: [{ model: FarmImage, as: 'images' }]
+            include: [
+                { model: FarmImage, as: 'images' },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                }
+            ]
         });
 
         res.status(200).json({ farms });
@@ -620,6 +692,11 @@ exports.getUserFarms = async (req, res) => {
                     model: FarmImage,
                     as: 'images',
                     attributes: ['image_url']
+                },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
                 }
             ]
         });
@@ -634,11 +711,18 @@ exports.getUserFarms = async (req, res) => {
             where: {
                 id: fractionalIds.map(f => f.farm_id)
             },
-            include: [{
-                model: FarmImage,
-                as: 'images',
-                attributes: ['image_url']
-            }]
+            include: [
+                {
+                    model: FarmImage,
+                    as: 'images',
+                    attributes: ['image_url']
+                },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                }
+            ]
         });
 
         const installmentIds = await FarmInstallmentOwnership.findAll({
@@ -651,11 +735,18 @@ exports.getUserFarms = async (req, res) => {
             where: {
                 id: installmentIds.map(i => i.farm_id)
             },
-            include: [{
-                model: FarmImage,
-                as: 'images',
-                attributes: ['image_url']
-            }]
+            include: [
+                {
+                    model: FarmImage,
+                    as: 'images',
+                    attributes: ['image_url']
+                },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                }
+            ]
         });
 
         const allFarmsMap = new Map();
@@ -860,6 +951,11 @@ exports.getTopPerformingFarm = async (req, res) => {
                     as: 'unitOwnerships',
                     attributes: ['id', 'createdAt'],
                     required: false
+                },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
                 }
             ],
             limit: 100
@@ -1150,6 +1246,11 @@ exports.getUserFarmsAnalytics = async (req, res) => {
                     where: { user_id: requestedUserId },
                     required: false,
                     attributes: ['id', 'createdAt']
+                },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
                 }
             ],
             distinct: true
@@ -1471,50 +1572,55 @@ exports.getUserFarmsAnalytics = async (req, res) => {
 };
 
 exports.getRelistedFarms = async (req, res) => {
-  try {
-    const relistedFarms = await Farm.findAll({
-      where: { is_relisted: true },
-      include: [
-        {
-          model: FarmImage,
-          as: 'images',
-          attributes: ['image_url']
-        },
-        {
-          model: FarmUnitOwnership,
-          as: 'unitOwnerships',  // ← ADD THE 'as' ALIAS
-          where: { is_relisted: true },
-          required: false
-        }
-      ],
-      order: [['updatedAt', 'DESC']]
-    });
+    try {
+        const relistedFarms = await Farm.findAll({
+            where: { is_relisted: true },
+            include: [
+                {
+                    model: FarmImage,
+                    as: 'images',
+                    attributes: ['image_url']
+                },
+                {
+                    model: FarmUnitOwnership,
+                    as: 'unitOwnerships',
+                    where: { is_relisted: true },
+                    required: false
+                },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                }
+            ],
+            order: [['updatedAt', 'DESC']]
+        });
 
-    const farmsWithUnits = await Promise.all(
-      relistedFarms.map(async farm => {
-        if (farm.is_fractional) {
-          const purchasedUnits = await FarmUnitOwnership.sum('units_purchased', {
-            where: { farm_id: farm.id }
-          });
-          farm.dataValues.available_units = farm.total_units_available - (purchasedUnits || 0);
-        }
-        return farm;
-      })
-    );
+        const farmsWithUnits = await Promise.all(
+            relistedFarms.map(async farm => {
+                if (farm.is_fractional) {
+                    const purchasedUnits = await FarmUnitOwnership.sum('units_purchased', {
+                        where: { farm_id: farm.id }
+                    });
+                    farm.dataValues.available_units = farm.total_units_available - (purchasedUnits || 0);
+                }
+                return farm;
+            })
+        );
 
-    res.status(200).json({
-      success: true,
-      count: relistedFarms.length,
-      farms: farmsWithUnits
-    });
-  } catch (error) {
-    console.error('Error fetching relisted farms:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch relisted farms',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
+        res.status(200).json({
+            success: true,
+            count: relistedFarms.length,
+            farms: farmsWithUnits
+        });
+    } catch (error) {
+        console.error('Error fetching relisted farms:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch relisted farms',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
 };
 
 exports.getAssemblage = async (req, res) => {
@@ -1542,6 +1648,11 @@ exports.getAssemblage = async (req, res) => {
                     as: 'images',
                     attributes: ['image_url'],
                     limit: 1
+                },
+                {
+                    model: FarmCrop,
+                    as: 'crops',
+                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
                 }
             ],
             attributes: [
