@@ -63,7 +63,7 @@ const login = async (req, res) => {
 
 // User signup
 const signup = async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, firstName, lastName } = req.body;
 
   try {
     // Check if the user already exists
@@ -75,9 +75,15 @@ const signup = async (req, res) => {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Extract firstName and lastName from name if not provided
+    const finalFirstName = firstName || (name ? name.split(' ')[0] : '');
+    const finalLastName = lastName || (name ? name.split(' ').slice(1).join(' ') : '');
+
     // Create the user in the database
     const newUser = await User.create({
       name,
+      firstName: finalFirstName,
+      lastName: finalLastName,
       email,
       password: hashedPassword,
       role: role || 'client'
