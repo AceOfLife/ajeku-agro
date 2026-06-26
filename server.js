@@ -19,6 +19,7 @@ const farmRoutes = require('./routes/farmRoutes');
 const farmManagerRoutes = require('./routes/farmManagerRoutes');
 const harvestRoutes = require('./routes/harvestRoutes');
 const farmUnitRoutes = require('./routes/farmUnitRoutes');
+const marketplaceRoutes = require('./routes/marketplaceRoutes');
 const cookieParser = require('cookie-parser');
 
 const app = express();
@@ -72,6 +73,7 @@ app.use('/api/harvest', harvestRoutes);
 app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
 app.use('/api/documents', require('./routes/documentRoutes'));
+app.use('/api/marketplace', marketplaceRoutes);
 
 app.get('/', (req, res) => res.send('Server is running'));
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(__dirname, 'favicon.png')));

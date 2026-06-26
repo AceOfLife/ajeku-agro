@@ -15,58 +15,56 @@ const {
   InvestorProducePreference
 } = require('../models');
 
+
 exports.initializePayment = async (req, res) => {
   try {
-    const { user_id, farm_id, payment_type, units = 1 } = req.body;
+    const { user_id, farm_id, unit_ids, payment_type, units = 1 } = req.body;
 
     const user = await User.findByPk(user_id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const farm = await Farm.findByPk(farm_id);
-    if (!farm) return res.status(404).json({ message: 'Farm not found' });
-
-    if (payment_type === "full" && farm.is_sold_out) {
-      return res.status(400).json({ message: 'Farm has been fully subscribed' });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    let amount = farm.price_per_unit;
-
-    if (payment_type === "farm_unit" && farm.is_fractional) {
-      if (!farm.price_per_unit || !farm.total_units_available) {
-        return res.status(400).json({ message: 'Invalid farm unit setup' });
-      }
-      if (units > farm.total_units_available) {
-        return res.status(400).json({ message: 'Not enough farm units available' });
-      }
-      amount = farm.price_per_unit * units;
+    const farm = await Farm.findByPk(farm_id, {
+      include: [{ model: FarmUnit, as: 'units' }]
+    });
+    if (!farm) {
+      return res.status(404).json({ message: 'Farm not found' });
     }
-    else if (payment_type === "farm_installment" && farm.isInstallment) {
-      if (farm.is_fractional) {
-        if (!farm.price_per_unit || !farm.total_units_available) {
-          return res.status(400).json({ message: 'Invalid farm unit installment setup' });
+
+    let selectedUnits = [];
+    let totalAmount = 0;
+
+    // If unit_ids are provided, calculate total for specific units
+    if (unit_ids && unit_ids.length > 0) {
+      selectedUnits = await FarmUnit.findAll({
+        where: {
+          id: unit_ids,
+          farm_id: farm_id,
+          status: 'available'
         }
-        if (units > farm.total_units_available) {
-          return res.status(400).json({ message: 'Not enough farm units available' });
-        }
-        amount = (farm.price_per_unit * units) / farm.duration;
-      } else {
-        if (!farm.duration || farm.duration <= 0) {
-          return res.status(400).json({ message: 'Invalid installment setup' });
-        }
-        amount = farm.price_per_unit / farm.duration;
+      });
+
+      if (selectedUnits.length !== unit_ids.length) {
+        return res.status(400).json({ 
+          message: 'One or more units are not available for purchase' 
+        });
       }
-    }
-    else if (payment_type === "fractionalInstallment" && farm.is_fractional && farm.isFractionalInstallment) {
-      if (!farm.price_per_unit || !farm.isFractionalDuration || !farm.total_units_available) {
-        return res.status(400).json({ message: 'Invalid fractional installment duration setup' });
+
+      totalAmount = selectedUnits.reduce((sum, unit) => sum + parseFloat(unit.price), 0);
+    } else {
+      // Fallback to units count (for backward compatibility)
+      const availableUnits = farm.units.filter(u => u.status === 'available');
+      if (units > availableUnits.length) {
+        return res.status(400).json({ message: 'Not enough units available' });
       }
-      if (units > farm.total_units_available) {
-        return res.status(400).json({ message: 'Not enough farm units available' });
-      }
-      amount = (farm.price_per_unit * units) / farm.isFractionalDuration;
+      
+      selectedUnits = availableUnits.slice(0, units);
+      totalAmount = selectedUnits.reduce((sum, unit) => sum + parseFloat(unit.price), 0);
     }
 
-    const amountInKobo = Math.round(amount * 100);
+    // Initialize payment with Paystack
+    const amountInKobo = Math.round(totalAmount * 100);
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
@@ -77,8 +75,9 @@ exports.initializePayment = async (req, res) => {
         metadata: {
           user_id: user.id,
           farm_id: farm.id,
-          payment_type,
-          units,
+          unit_ids: selectedUnits.map(u => u.id),
+          payment_type: 'farm_unit',
+          total_amount: totalAmount
         }
       },
       {
@@ -95,21 +94,14 @@ exports.initializePayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Payment Initialization Error:", {
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-    res.status(500).json({ 
-      message: "Error initializing payment",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    console.error("Payment Initialization Error:", error);
+    res.status(500).json({ message: "Error initializing payment", error });
   }
 };
 
+
 exports.verifyPayment = async (req, res) => {
-  const t = await sequelize.transaction({
-    isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.REPEATABLE_READ
-  });
+  const t = await sequelize.transaction();
   
   try {
     const { reference } = req.query;
@@ -118,6 +110,7 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
+    // Check for existing transaction
     const existingTransaction = await Transaction.findOne({ 
       where: { reference },
       transaction: t
@@ -126,11 +119,12 @@ exports.verifyPayment = async (req, res) => {
     if (existingTransaction) {
       await t.commit();
       return res.status(200).json({
-        message: "The Payment has been verified already",
+        message: "Payment already verified",
         transaction: existingTransaction
       });
     }
 
+    // Verify with Paystack
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -143,337 +137,77 @@ exports.verifyPayment = async (req, res) => {
       await t.rollback();
       return res.status(400).json({
         message: "Payment not successful",
-        status: paymentData.status,
-        gateway_response: paymentData.gateway_response
+        status: paymentData.status
       });
     }
 
-    const { user_id, farm_id, payment_type, units = 1 } = paymentData.metadata || {};
-    if (!user_id || !farm_id || !payment_type) {
-      await t.rollback();
-      return res.status(400).json({ message: "Incomplete payment metadata" });
-    }
+    const { user_id, farm_id, unit_ids, payment_type } = paymentData.metadata || {};
 
-    const [user, farm] = await Promise.all([
-      User.findByPk(user_id, { transaction: t }),
-      Farm.findByPk(farm_id, { 
-        transaction: t,
-        lock: true
-      })
-    ]);
-
-    if (!user || !farm) {
-      await t.rollback();
-      return res.status(404).json({ 
-        message: `${!user ? 'User' : 'Farm'} not found` 
-      });
-    }
-
+    // Create transaction record
     const transaction = await Transaction.create({
       user_id,
       farm_id,
       reference,
       price: paymentData.amount / 100,
-      currency: paymentData.currency,
       status: paymentData.status,
       transaction_date: new Date(paymentData.transaction_date),
-      payment_type,
-      units_purchased: units
+      payment_type: payment_type || 'farm_unit'
     }, { transaction: t });
 
-    const io = req.app.get('socketio');
-
-    const clientNotification = await Notification.create({
-      user_id: user_id,
-      title: 'Payment Successful',
-      message: `Your ${payment_type} payment for ${farm.name} was completed successfully`,
-      type: 'payment',
-      related_entity_id: farm_id,
-      metadata: {
-        transaction_id: transaction.id,
-        amount: paymentData.amount / 100,
-        currency: paymentData.currency,
-        units_purchased: units
-      }
-    }, { transaction: t });
-
-    const admins = await User.findAll({ 
-      where: { role: 'admin' },
-      transaction: t
-    });
-
-    const adminNotifications = await Promise.all(
-      admins.map(admin => 
-        Notification.create({
-          user_id: admin.id,
-          title: 'New Payment Received',
-          message: `Investor ${user.email} completed a ${payment_type} payment (${paymentData.currency} ${paymentData.amount/100}) for ${farm.name}`,
-          type: 'admin_alert',
-          related_entity_id: transaction.id,
-          metadata: {
-            user_id: user_id,
-            farm_id: farm_id,
-            payment_type: payment_type,
-            units_purchased: units
-          }
-        }, { transaction: t })
-      )
-    );
-
-    const getAvailableFarmUnits = async (farmId) => {
-      const ownerships = await FarmUnitOwnership.findAll({ 
-        where: { farm_id: farmId },
-        transaction: t
-      });
-      const totalPurchased = ownerships.reduce((sum, o) => sum + parseFloat(o.units_purchased || 0), 0);
-      return farm.total_units_available - totalPurchased;
-    };
-
-    if (payment_type === "full") {
-      await FullFarmOwnership.create({
-        user_id,
-        farm_id,
-        purchase_amount: paymentData.amount / 100,
-        purchase_date: new Date(),
-        units_owned: units
-      }, { transaction: t });
-
-      await Farm.update({
-        is_sold_out: true,
-        original_owner_id: user_id
-      }, {
-        where: { id: farm_id },
-        transaction: t
-      });
-
-      await t.commit();
-      
-      if (io) {
-        io.to(`user_${user_id}`).emit('new_notification', {
-          event: 'payment_success',
-          data: clientNotification
-        });
-
-        adminNotifications.forEach(notif => {
-          io.to(`user_${notif.user_id}`).emit('new_notification', {
-            event: 'admin_payment_alert',
-            data: notif
-          });
-        });
-      }
-
-      return res.status(200).json({
-        message: "Full farm purchase verified successfully",
-        transaction,
-        ownership: {
-          type: 'full',
-          purchase_amount: paymentData.amount / 100,
-          purchase_date: new Date(),
-          units_owned: units
-        }
-      });
-    }
-
-    if (payment_type === "farm_unit" && farm.is_fractional) {
-      const availableUnits = await getAvailableFarmUnits(farm.id);
-      if (units > availableUnits) {
+    // Create ownership for each unit
+    const ownerships = [];
+    for (const unitId of unit_ids) {
+      const unit = await FarmUnit.findByPk(unitId, { transaction: t });
+      if (!unit || unit.status !== 'available') {
         await t.rollback();
-        return res.status(400).json({ message: 'Not enough farm units available (post-payment)' });
+        return res.status(400).json({ message: `Unit ${unitId} is no longer available` });
       }
 
-      await FarmUnitOwnership.create({
-        user_id,
-        farm_id,
-        units_purchased: units,
-        size_purchased: units * parseFloat(farm.unit_size)
+      const ownership = await FarmUnitOwnership.create({
+        farm_unit_id: unitId,
+        user_id: user_id,
+        units_purchased: 1,
+        size_purchased: unit.size_in_unit,
+        purchase_date: new Date()
       }, { transaction: t });
 
-      await t.commit();
-      
-      if (io) {
-        io.to(`user_${user_id}`).emit('new_notification', {
-          event: 'payment_success',
-          data: clientNotification
-        });
-
-        adminNotifications.forEach(notif => {
-          io.to(`user_${notif.user_id}`).emit('new_notification', {
-            event: 'admin_payment_alert',
-            data: notif
-          });
-        });
-      }
-
-      return res.status(200).json({
-        message: "Farm unit payment verified successfully",
-        transaction,
-        unitsPurchased: units,
-        availableUnits: availableUnits - units
-      });
-    }
-
-    if (payment_type === "fractionalInstallment" && farm.is_fractional && farm.isFractionalInstallment) {
-      const today = new Date();
-      let ownership = await FarmInstallmentOwnership.findOne({
-        where: { user_id, farm_id },
-        transaction: t
-      });
-
-      if (!ownership) {
-        const availableUnits = await getAvailableFarmUnits(farm.id);
-        if (units > availableUnits) {
-          await t.rollback();
-          return res.status(400).json({ message: 'Not enough farm units available (post-payment)' });
-        }
-
-        ownership = await FarmInstallmentOwnership.create({
-          user_id,
-          farm_id,
-          start_date: today,
-          total_months: farm.isFractionalDuration,
-          months_paid: 1,
-          status: farm.isFractionalDuration === 1 ? "completed" : "ongoing"
-        }, { transaction: t });
-
-        await FarmUnitOwnership.create({
-          user_id,
-          farm_id,
-          units_purchased: units,
-          size_purchased: units * parseFloat(farm.unit_size)
-        }, { transaction: t });
-      } else {
-        ownership.months_paid += 1;
-        if (ownership.months_paid >= ownership.total_months) {
-          ownership.status = "completed";
-        }
-        await ownership.save({ transaction: t });
-      }
-
-      await FarmInstallmentPayment.create({
-        ownership_id: ownership.id,
-        user_id,
-        farm_id,
-        amount_paid: paymentData.amount / 100,
-        payment_month: today.getMonth() + 1,
-        payment_year: today.getFullYear()
+      await unit.update({
+        status: 'sold',
+        current_owner_id: user_id
       }, { transaction: t });
 
-      await t.commit();
-
-      if (io) {
-        io.to(`user_${user_id}`).emit('new_notification', {
-          event: 'payment_success',
-          data: clientNotification
-        });
-
-        adminNotifications.forEach(notif => {
-          io.to(`user_${notif.user_id}`).emit('new_notification', {
-            event: 'admin_payment_alert',
-            data: notif
-          });
-        });
-      }
-
-      return res.status(200).json({
-        message: "Fractional installment payment verified successfully",
-        transaction,
-        monthsPaid: ownership.months_paid,
-        monthsRemaining: ownership.total_months - ownership.months_paid,
-        status: ownership.status,
-        availableUnits: await getAvailableFarmUnits(farm.id)
-      });
-    }
-
-    if (payment_type === "farm_installment" && farm.isInstallment && !farm.is_fractional) {
-      const today = new Date();
-      let ownership = await FarmInstallmentOwnership.findOne({
-        where: { user_id, farm_id },
-        transaction: t
-      });
-
-      if (!ownership) {
-        ownership = await FarmInstallmentOwnership.create({
-          user_id,
-          farm_id,
-          start_date: today,
-          total_months: parseInt(farm.duration),
-          months_paid: 1,
-          status: parseInt(farm.duration) === 1 ? "completed" : "ongoing"
-        }, { transaction: t });
-      } else {
-        ownership.months_paid += 1;
-        if (ownership.months_paid >= ownership.total_months) {
-          ownership.status = "completed";
-        }
-        await ownership.save({ transaction: t });
-      }
-
-      await FarmInstallmentPayment.create({
-        ownership_id: ownership.id,
-        user_id,
-        farm_id,
-        amount_paid: paymentData.amount / 100,
-        payment_month: today.getMonth() + 1,
-        payment_year: today.getFullYear()
-      }, { transaction: t });
-
-      await t.commit();
-
-      if (io) {
-        io.to(`user_${user_id}`).emit('new_notification', {
-          event: 'payment_success',
-          data: clientNotification
-        });
-
-        adminNotifications.forEach(notif => {
-          io.to(`user_${notif.user_id}`).emit('new_notification', {
-            event: 'admin_payment_alert',
-            data: notif
-          });
-        });
-      }
-
-      return res.status(200).json({
-        message: "Farm installment payment verified successfully",
-        transaction,
-        monthsPaid: ownership.months_paid,
-        monthsRemaining: ownership.total_months - ownership.months_paid,
-        status: ownership.status
-      });
+      ownerships.push(ownership);
     }
 
     await t.commit();
-    
+
+    // Send notifications
+    const io = req.app.get('socketio');
+    const notification = await Notification.create({
+      user_id: user_id,
+      title: 'Unit Purchase Successful',
+      message: `You have successfully purchased ${ownerships.length} unit(s) on ${farm.name}`,
+      type: 'payment',
+      related_entity_id: farm_id
+    });
+
     if (io) {
       io.to(`user_${user_id}`).emit('new_notification', {
         event: 'payment_success',
-        data: clientNotification
-      });
-
-      adminNotifications.forEach(notif => {
-        io.to(`user_${notif.user_id}`).emit('new_notification', {
-          event: 'admin_payment_alert',
-          data: notif
-        });
+        data: notification
       });
     }
 
-    return res.status(200).json({
-      message: "Payment verified, but no specific ownership type was processed",
-      transaction
+    res.status(200).json({
+      message: 'Payment verified successfully',
+      transaction,
+      units_purchased: ownerships
     });
 
   } catch (error) {
     await t.rollback();
-    console.error("Payment Verification Error:", {
-      message: error.message,
-      reference: req.query.reference,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-    return res.status(500).json({ 
-      message: "Error verifying payment",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    console.error("Payment Verification Error:", error);
+    res.status(500).json({ message: "Error verifying payment", error });
   }
 };
 
