@@ -210,7 +210,7 @@ exports.purchaseUnit = async (req, res) => {
       farm_unit_id: unitId,
       user_id: userId,
       units_purchased: 1,
-      size_purchased: unit.size_in_unit,
+      size_purchased: unit.size_of_unit,
       purchase_date: new Date()
     });
 
