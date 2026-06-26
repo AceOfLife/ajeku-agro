@@ -1,4 +1,4 @@
-// models/FarmUnit.js
+// models/farmUnit.js
 'use strict';
 
 module.exports = (sequelize, DataTypes) => {
@@ -20,17 +20,47 @@ module.exports = (sequelize, DataTypes) => {
     },
     unit_number: {
       type: DataTypes.STRING,
-      allowNull: true,
-      comment: 'Optional identifier for the unit (e.g., "Plot A", "Section 1")',
+      allowNull: false,
+      comment: 'e.g., "Unit A1", "Plot 1"',
     },
     size_in_unit: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      comment: 'Size of this unit in the farm\'s measurement unit',
+      comment: 'Size of this unit in hectares',
     },
     price: {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: false,
+    },
+    crop_type: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      comment: 'Crop grown on this specific unit',
+    },
+    crop_description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Variety, quality, farming method for this unit',
+    },
+    planting_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    expected_harvest_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    harvest_cycle_months: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    expected_yield_per_unit_kg: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    expected_value_per_kg: {
+      type: DataTypes.DECIMAL(15, 2),
+      allowNull: true,
     },
     status: {
       type: DataTypes.ENUM('available', 'reserved', 'sold'),
@@ -47,9 +77,8 @@ module.exports = (sequelize, DataTypes) => {
     nft_token_id: {
       type: DataTypes.STRING,
       allowNull: true,
-      comment: 'NFT deed token ID',
+      comment: 'NFT deed token ID for this unit',
     },
-    // Timestamps
     createdAt: {
       allowNull: false,
       type: DataTypes.DATE,

@@ -1,4 +1,6 @@
-const { Farm, User, FarmImage, FarmUnitOwnership, FarmInstallmentOwnership, Transaction, FarmCrop, sequelize } = require('../models');
+// controllers/FarmController.js - UPDATED createFarm, getFarmById, getAllFarms, getFilteredFarms, getUserFarms, getRecentFarms, getMostViewedFarms, getAssemblage, getRelistedFarms
+
+const { Farm, User, FarmImage, FarmUnitOwnership, FarmInstallmentOwnership, Transaction, FarmUnit, sequelize } = require('../models');
 const path = require('path');
 const fs = require('fs');
 const cloudinary = require('../config/cloudinaryConfig');
@@ -95,12 +97,10 @@ exports.createFarm = async (req, res) => {
         try {
             const {
                 name, location, address, description, total_farm_size, measurement_unit,
-                unit_size, crop_type, crop_description, planting_date, expected_harvest_date,
-                harvest_cycle_months, expected_yield_per_unit_kg, expected_value_per_kg,
                 farm_manager, soil_type, irrigation_method, physical_delivery_offered,
-                delivery_regions, price_per_unit, total_units_available, farm_valuation,
+                delivery_regions, farm_valuation,
                 is_fractional, isInstallment, isFractionalInstallment, isFractionalDuration,
-                percentage, duration, monthly_expense, manager_id, crops
+                percentage, duration, monthly_expense, manager_id
             } = req.body;
 
             const parsedFractional = ["true", "1", true].includes(is_fractional);
@@ -108,8 +108,6 @@ exports.createFarm = async (req, res) => {
             const parsedDuration = duration != null ? parseInt(duration, 10) : null;
             const parsedIsFractionalInstallment = parsedFractional ? ["true", "1", true].includes(isFractionalInstallment) : false;
             const parsedIsFractionalDuration = parsedIsFractionalInstallment ? parseInt(isFractionalDuration, 10) : null;
-            const parsedPricePerUnit = parseFloat(price_per_unit) || 0;
-            const parsedTotalUnits = parseInt(total_units_available, 10) || 0;
             const parsedMonthlyExpense = monthly_expense ? parseFloat(monthly_expense) : null;
 
             if (!parsedFractional && isInstallment === undefined) {
@@ -132,25 +130,13 @@ exports.createFarm = async (req, res) => {
                 address: address || "",
                 description: description || "",
                 total_farm_size: parseFloat(total_farm_size) || 0,
-                measurement_unit: measurement_unit || "acres",
-                unit_size: parseFloat(unit_size) || 0,
-                crop_type: crop_type || "",
-                crop_description: crop_description || "",
-                supports_multiple_crops: crops && crops.length > 1 ? true : false,
-                planting_date: planting_date ? new Date(planting_date) : null,
-                expected_harvest_date: expected_harvest_date ? new Date(expected_harvest_date) : null,
-                harvest_cycle_months: parseInt(harvest_cycle_months, 10) || 0,
-                expected_yield_per_unit_kg: parseFloat(expected_yield_per_unit_kg) || 0,
-                expected_value_per_kg: parseFloat(expected_value_per_kg) || 0,
+                measurement_unit: measurement_unit || "hectares",
                 farm_manager: farm_manager || "",
                 manager_id: manager_id || null,
                 soil_type: soil_type || "",
                 irrigation_method: irrigation_method || "",
                 physical_delivery_offered: ["true", "1", true].includes(physical_delivery_offered),
                 delivery_regions: splitToArray(delivery_regions),
-                price_per_unit: parsedPricePerUnit,
-                total_units_available: parsedTotalUnits,
-                available_units: parsedTotalUnits,
                 farm_valuation: farm_valuation ? parseFloat(farm_valuation) : null,
                 is_fractional: parsedFractional,
                 isInstallment: parsedFractional ? false : parsedIsInstallment,
@@ -160,38 +146,16 @@ exports.createFarm = async (req, res) => {
                 duration: parsedFractional ? null : parsedDuration,
                 monthly_expense: parsedMonthlyExpense,
                 is_sold_out: false,
-                harvest_status: 'Pre-planting'
             };
 
             const newFarm = await Farm.create(newFarmData);
 
-            if (crops && crops.length > 0) {
-                const cropsData = crops.map(crop => ({
-                    farm_id: newFarm.id,
-                    crop_type: crop.crop_type,
-                    crop_description: crop.crop_description || null,
-                    area_allocated: crop.area_allocated || null,
-                    planting_date: crop.planting_date ? new Date(crop.planting_date) : null,
-                    expected_harvest_date: crop.expected_harvest_date ? new Date(crop.expected_harvest_date) : null,
-                    harvest_cycle_months: crop.harvest_cycle_months || null,
-                    expected_yield_per_unit_kg: crop.expected_yield_per_unit_kg || null,
-                    expected_value_per_kg: crop.expected_value_per_kg || null,
-                    is_primary: crop.is_primary || false,
-                }));
-
-                if (cropsData.some(c => c.is_primary) === false && cropsData.length > 0) {
-                    cropsData[0].is_primary = true;
-                }
-
-                await FarmCrop.bulkCreate(cropsData);
-            }
-
             const farm = await Farm.findByPk(newFarm.id, {
                 include: [
                     {
-                        model: FarmCrop,
-                        as: 'crops',
-                        attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                        model: FarmUnit,
+                        as: 'units',
+                        attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                     }
                 ]
             });
@@ -243,9 +207,9 @@ exports.updateFarm = async (req, res) => {
                 where: { id },
                 include: [
                     {
-                        model: FarmCrop,
-                        as: 'crops',
-                        attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                        model: FarmUnit,
+                        as: 'units',
+                        attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                     }
                 ]
             });
@@ -313,9 +277,9 @@ exports.getAllFarms = async (req, res) => {
                     attributes: ['image_url']
                 },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -343,6 +307,12 @@ exports.getAllFarms = async (req, res) => {
         });
 
         for (const farm of farms) {
+            const totalUnits = farm.units ? farm.units.length : 0;
+            const soldUnits = farm.units ? farm.units.filter(u => u.status === 'sold').length : 0;
+            farm.dataValues.total_units = totalUnits;
+            farm.dataValues.available_units = totalUnits - soldUnits;
+            farm.dataValues.sold_units = soldUnits;
+
             if (farm.isInstallment && !farm.is_fractional) {
                 const ownerships = installmentOwnershipMap[farm.id] || [];
                 const totalMonths = ownerships.reduce((sum, o) => sum + o.total_months, 0);
@@ -382,9 +352,9 @@ exports.getFarmById = async (req, res) => {
             include: [
                 { model: FarmImage, as: 'images' },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -395,6 +365,10 @@ exports.getFarmById = async (req, res) => {
 
         await farm.increment('views');
         await farm.update({ last_checked: new Date() });
+
+        const totalUnits = farm.units ? farm.units.length : 0;
+        const soldUnits = farm.units ? farm.units.filter(u => u.status === 'sold').length : 0;
+        const availableUnits = totalUnits - soldUnits;
 
         const parsedUserId = parseInt(userId);
         const parsedFarmId = parseInt(id);
@@ -451,16 +425,18 @@ exports.getFarmById = async (req, res) => {
             const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + parseFloat(o.units_purchased || 0), 0);
 
             fractionalProgress = {
-                totalUnits: farm.total_units_available,
+                totalUnits: totalUnits,
                 purchasedUnits: totalPurchased,
-                availableUnits: farm.total_units_available - totalPurchased,
+                availableUnits: availableUnits,
                 totalInvestors: fractionalOwnerships.length
             };
         }
 
         const farmData = {
             ...farm.toJSON(),
-            available_units: farm.is_fractional ? fractionalProgress?.availableUnits : undefined,
+            total_units: totalUnits,
+            available_units: availableUnits,
+            sold_units: soldUnits,
             user_units_owned: farm.is_fractional && parsedUserId ? userUnitsOwned : undefined
         };
 
@@ -497,7 +473,7 @@ exports.getFilteredFarms = async (req, res) => {
 
         if (crop_type) {
             const cropTypesArray = crop_type.split(',').map(str => str.trim());
-            filter.crop_type = {
+            filter['$units.crop_type$'] = {
                 [Op.in]: cropTypesArray
             };
         }
@@ -508,35 +484,34 @@ exports.getFilteredFarms = async (req, res) => {
             };
         }
 
-        try {
-            const sqlQuery = await Farm.sequelize.queryInterface.queryGenerator.selectQuery('Farm', {
-                where: filter,
-                include: [{ model: FarmImage, as: 'images' }]
-            });
-            console.log("SQL Query being executed:", sqlQuery.sql);
-        } catch (queryGenerationError) {
-            console.error("Error generating SQL query:", queryGenerationError);
-        }
-
         const farms = await Farm.findAll({
             where: filter,
             include: [
                 { model: FarmImage, as: 'images' },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
         });
-
-        console.log("Query result:", farms);
 
         if (farms.length === 0) {
             return res.status(404).json({ message: 'No farms found' });
         }
 
-        res.status(200).json(farms);
+        const farmsWithUnits = farms.map(farm => {
+            const totalUnits = farm.units ? farm.units.length : 0;
+            const soldUnits = farm.units ? farm.units.filter(u => u.status === 'sold').length : 0;
+            const availableUnits = totalUnits - soldUnits;
+            const farmData = farm.toJSON();
+            farmData.total_units = totalUnits;
+            farmData.available_units = availableUnits;
+            farmData.sold_units = soldUnits;
+            return farmData;
+        });
+
+        res.status(200).json(farmsWithUnits);
     } catch (error) {
         console.error("Error retrieving farms:", error);
         res.status(500).json({
@@ -556,50 +531,41 @@ exports.getFarmUnits = async (req, res) => {
             return res.status(404).json({ message: 'Farm not found' });
         }
 
-        const allOwnerships = await FarmUnitOwnership.findAll({
+        const allUnits = await FarmUnit.findAll({
             where: { farm_id },
             include: [
                 {
                     model: User,
+                    as: 'currentOwner',
                     attributes: ['id', 'name', 'email']
                 }
             ]
         });
 
-        const totalPurchasedUnits = allOwnerships.reduce(
-            (sum, record) => sum + parseFloat(record.units_purchased || 0),
-            0
-        );
-
-        const totalUnits = farm.total_units_available + totalPurchasedUnits;
+        const totalUnits = allUnits.length;
+        const availableUnits = allUnits.filter(u => u.status === 'available').length;
+        const soldUnits = allUnits.filter(u => u.status === 'sold').length;
 
         if (user_id) {
-            const userPurchasedUnits = allOwnerships
-                .filter(record => record.user_id.toString() === user_id.toString())
-                .reduce((sum, record) => sum + parseFloat(record.units_purchased || 0), 0);
-
+            const userUnits = allUnits.filter(u => u.current_owner_id === parseInt(user_id));
             return res.status(200).json({
                 farm_id: farm.id,
                 name: farm.name,
-                available_units: farm.total_units_available,
-                purchased_units: userPurchasedUnits,
-                total_units: totalUnits
+                total_units: totalUnits,
+                available_units: availableUnits,
+                sold_units: soldUnits,
+                user_units_owned: userUnits.length,
+                user_units: userUnits
             });
         }
 
         return res.status(200).json({
             farm_id: farm.id,
             name: farm.name,
-            available_units: farm.total_units_available,
-            total_purchased_units: totalPurchasedUnits,
             total_units: totalUnits,
-            purchases: allOwnerships.map(ownership => ({
-                user_id: ownership.user_id,
-                user_name: ownership.User.name,
-                user_email: ownership.User.email,
-                units_purchased: ownership.units_purchased,
-                purchase_date: ownership.createdAt
-            }))
+            available_units: availableUnits,
+            sold_units: soldUnits,
+            units: allUnits
         });
 
     } catch (error) {
@@ -619,14 +585,25 @@ exports.getRecentFarms = async (req, res) => {
             include: [
                 { model: FarmImage, as: 'images' },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
 
-        res.status(200).json({ farms });
+        const farmsWithUnits = farms.map(farm => {
+            const totalUnits = farm.units ? farm.units.length : 0;
+            const soldUnits = farm.units ? farm.units.filter(u => u.status === 'sold').length : 0;
+            const availableUnits = totalUnits - soldUnits;
+            const farmData = farm.toJSON();
+            farmData.total_units = totalUnits;
+            farmData.available_units = availableUnits;
+            farmData.sold_units = soldUnits;
+            return farmData;
+        });
+
+        res.status(200).json({ farms: farmsWithUnits });
     } catch (error) {
         console.error("Error fetching recent farms:", error);
         res.status(500).json({ message: "Failed to fetch recent farms", error });
@@ -641,14 +618,25 @@ exports.getMostViewedFarms = async (req, res) => {
             include: [
                 { model: FarmImage, as: 'images' },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
 
-        res.status(200).json({ farms });
+        const farmsWithUnits = farms.map(farm => {
+            const totalUnits = farm.units ? farm.units.length : 0;
+            const soldUnits = farm.units ? farm.units.filter(u => u.status === 'sold').length : 0;
+            const availableUnits = totalUnits - soldUnits;
+            const farmData = farm.toJSON();
+            farmData.total_units = totalUnits;
+            farmData.available_units = availableUnits;
+            farmData.sold_units = soldUnits;
+            return farmData;
+        });
+
+        res.status(200).json({ farms: farmsWithUnits });
     } catch (error) {
         console.error('Error fetching most viewed farms:', error);
         res.status(500).json({ message: 'Failed to fetch most viewed farms', error });
@@ -659,9 +647,10 @@ exports.getUserFarms = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        const [allInstallmentOwnerships, allFractionalOwnerships] = await Promise.all([
+        const [allInstallmentOwnerships, allFractionalOwnerships, allUnits] = await Promise.all([
             FarmInstallmentOwnership.findAll(),
-            FarmUnitOwnership.findAll()
+            FarmUnitOwnership.findAll(),
+            FarmUnit.findAll({ where: { current_owner_id: userId } })
         ]);
 
         const installmentOwnershipMap = {};
@@ -681,6 +670,8 @@ exports.getUserFarms = async (req, res) => {
             fractionalOwnershipMap[ownership.farm_id].push(ownership);
         });
 
+        const userUnitIds = allUnits.map(u => u.farm_id);
+
         const outright = await Farm.findAll({
             include: [
                 {
@@ -694,22 +685,16 @@ exports.getUserFarms = async (req, res) => {
                     attributes: ['image_url']
                 },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
 
-        const fractionalIds = await FarmUnitOwnership.findAll({
-            where: { user_id: userId },
-            attributes: ['farm_id'],
-            raw: true
-        });
-
         const fractional = await Farm.findAll({
             where: {
-                id: fractionalIds.map(f => f.farm_id)
+                id: userUnitIds
             },
             include: [
                 {
@@ -718,9 +703,9 @@ exports.getUserFarms = async (req, res) => {
                     attributes: ['image_url']
                 },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -742,9 +727,9 @@ exports.getUserFarms = async (req, res) => {
                     attributes: ['image_url']
                 },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -758,6 +743,15 @@ exports.getUserFarms = async (req, res) => {
         const uniqueFarms = Array.from(allFarmsMap.values());
 
         for (const farm of uniqueFarms) {
+            const totalUnits = farm.units ? farm.units.length : 0;
+            const soldUnits = farm.units ? farm.units.filter(u => u.status === 'sold').length : 0;
+            const availableUnits = totalUnits - soldUnits;
+            const userUnitsOnFarm = farm.units ? farm.units.filter(u => u.current_owner_id === userId).length : 0;
+            farm.dataValues.total_units = totalUnits;
+            farm.dataValues.available_units = availableUnits;
+            farm.dataValues.sold_units = soldUnits;
+            farm.dataValues.user_units_owned = userUnitsOnFarm;
+
             if (farm.isInstallment && !farm.is_fractional) {
                 const ownerships = installmentOwnershipMap[farm.id] || [];
                 const userOwnerships = ownerships.filter(o => o.user_id === userId);
@@ -870,7 +864,7 @@ async function calculateFarmAnalytics(farmId, userId = null) {
     const farm = await Farm.findByPk(farmId);
     if (!farm) return null;
 
-    const estimated_value = parseFloat(farm.farm_valuation || farm.price_per_unit || 0);
+    const estimated_value = parseFloat(farm.farm_valuation || 0);
     const monthly_expense = parseFloat(farm.monthly_expense || 0);
     const annual_expense = monthly_expense * 12;
 
@@ -887,7 +881,10 @@ async function calculateFarmAnalytics(farmId, userId = null) {
             where: { user_id: userId, farm_id: farm.id }
         });
         if (ownership) {
-            const monthly_installment = farm.price_per_unit / ownership.total_months;
+            const totalPrice = await FarmUnit.sum('price', {
+                where: { farm_id: farm.id }
+            }) || 0;
+            const monthly_installment = totalPrice / ownership.total_months;
             outstanding_balance = monthly_installment * (ownership.total_months - ownership.months_paid);
         }
     }
@@ -929,9 +926,9 @@ exports.getTopPerformingFarm = async (req, res) => {
 
         const farms = await Farm.findAll({
             attributes: [
-                'id', 'name', 'location', 'crop_type', 'total_farm_size',
-                'measurement_unit', 'expected_harvest_date', 'farm_valuation',
-                'price_per_unit', 'monthly_expense', 'createdAt'
+                'id', 'name', 'location', 'total_farm_size',
+                'measurement_unit', 'farm_valuation',
+                'monthly_expense', 'createdAt'
             ],
             include: [
                 {
@@ -953,9 +950,9 @@ exports.getTopPerformingFarm = async (req, res) => {
                     required: false
                 },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
             limit: 100
@@ -976,8 +973,15 @@ exports.getTopPerformingFarm = async (req, res) => {
                         farm.unitOwnerships?.[0]?.createdAt ||
                         farm.createdAt;
 
+                    const totalUnits = farm.units ? farm.units.length : 0;
+                    const soldUnits = farm.units ? farm.units.filter(u => u.status === 'sold').length : 0;
+                    const availableUnits = totalUnits - soldUnits;
+
                     return {
                         ...farm.get({ plain: true }),
+                        total_units: totalUnits,
+                        available_units: availableUnits,
+                        sold_units: soldUnits,
                         purchase_date: purchaseDate,
                         analytics: {
                             ...analytics,
@@ -1224,7 +1228,7 @@ exports.getUserFarmsAnalytics = async (req, res) => {
                     { '$unitOwnerships.user_id$': requestedUserId }
                 ]
             },
-            attributes: ['id', 'name', 'createdAt', 'farm_valuation', 'original_owner_id', 'location', 'total_farm_size', 'measurement_unit', 'crop_type'],
+            attributes: ['id', 'name', 'createdAt', 'farm_valuation', 'original_owner_id', 'location', 'total_farm_size', 'measurement_unit'],
             include: [
                 {
                     model: Transaction,
@@ -1248,9 +1252,9 @@ exports.getUserFarmsAnalytics = async (req, res) => {
                     attributes: ['id', 'createdAt']
                 },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
             distinct: true
@@ -1262,8 +1266,7 @@ exports.getUserFarmsAnalytics = async (req, res) => {
                     .then(analytics => ({
                         ...analytics,
                         farm_id: farm.id,
-                        farm_name: farm.name,
-                        crop_type: farm.crop_type
+                        farm_name: farm.name
                     }));
             })
         );
@@ -1588,9 +1591,9 @@ exports.getRelistedFarms = async (req, res) => {
                     required: false
                 },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
             order: [['updatedAt', 'DESC']]
@@ -1598,13 +1601,14 @@ exports.getRelistedFarms = async (req, res) => {
 
         const farmsWithUnits = await Promise.all(
             relistedFarms.map(async farm => {
-                if (farm.is_fractional) {
-                    const purchasedUnits = await FarmUnitOwnership.sum('units_purchased', {
-                        where: { farm_id: farm.id }
-                    });
-                    farm.dataValues.available_units = farm.total_units_available - (purchasedUnits || 0);
-                }
-                return farm;
+                const totalUnits = farm.units ? farm.units.length : 0;
+                const soldUnits = farm.units ? farm.units.filter(u => u.status === 'sold').length : 0;
+                const availableUnits = totalUnits - soldUnits;
+                const farmData = farm.toJSON();
+                farmData.total_units = totalUnits;
+                farmData.available_units = availableUnits;
+                farmData.sold_units = soldUnits;
+                return farmData;
             })
         );
 
@@ -1650,9 +1654,9 @@ exports.getAssemblage = async (req, res) => {
                     limit: 1
                 },
                 {
-                    model: FarmCrop,
-                    as: 'crops',
-                    attributes: ['id', 'crop_type', 'crop_description', 'area_allocated', 'planting_date', 'expected_harvest_date', 'is_primary']
+                    model: FarmUnit,
+                    as: 'units',
+                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
             attributes: [
@@ -1661,11 +1665,8 @@ exports.getAssemblage = async (req, res) => {
                 'location',
                 'total_farm_size',
                 'measurement_unit',
-                'crop_type',
-                'price_per_unit',
                 'isInstallment',
-                'is_fractional',
-                'total_units_available'
+                'is_fractional'
             ]
         });
 
@@ -1693,12 +1694,12 @@ exports.getAssemblage = async (req, res) => {
 
         const formattedFarms = farms.map(farm => {
             const farmData = farm.toJSON();
-
-            const price = `₦${farmData.price_per_unit.toLocaleString()}`;
+            const totalUnits = farm.units ? farm.units.length : 0;
+            const availableUnits = farm.units ? farm.units.filter(u => u.status === 'available').length : 0;
+            const soldUnits = farm.units ? farm.units.filter(u => u.status === 'sold').length : 0;
 
             let ownershipType;
             let installmentProgress = null;
-            let available_units = null;
             let fractionalProgress = null;
 
             if (farmData.isInstallment && !farmData.is_fractional) {
@@ -1719,17 +1720,21 @@ exports.getAssemblage = async (req, res) => {
 
                 const fractionalOwnerships = fractionalOwnershipMap[farmData.id] || [];
                 const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + parseFloat(o.units_purchased || 0), 0);
-                available_units = farmData.total_units_available - totalPurchased;
+                const availableSlots = (farmData.total_units_available || totalUnits) - totalPurchased;
 
                 fractionalProgress = {
-                    totalUnits: farmData.total_units_available,
+                    totalUnits: farmData.total_units_available || totalUnits,
                     purchasedUnits: totalPurchased,
-                    availableUnits: farmData.total_units_available - totalPurchased,
+                    availableUnits: availableSlots,
                     totalInvestors: fractionalOwnerships.length
                 };
             } else {
                 ownershipType = 'full';
             }
+
+            const priceRange = farm.units && farm.units.length > 0 
+                ? `₦${Math.min(...farm.units.map(u => u.price)).toLocaleString()} - ₦${Math.max(...farm.units.map(u => u.price)).toLocaleString()}`
+                : 'N/A';
 
             return {
                 id: farmData.id,
@@ -1738,16 +1743,26 @@ exports.getAssemblage = async (req, res) => {
                 info: {
                     total_farm_size: farmData.total_farm_size,
                     measurement_unit: farmData.measurement_unit,
-                    crop_type: farmData.crop_type
+                    total_units: totalUnits,
+                    available_units: availableUnits,
+                    sold_units: soldUnits
                 },
-                price: price,
+                price_range: priceRange,
                 ownership: ownershipType,
                 image: farmData.images && farmData.images.length > 0 ?
                     farmData.images[0].image_url :
                     null,
                 installmentProgress: installmentProgress,
-                available_units: available_units,
-                fractionalProgress: fractionalProgress
+                fractionalProgress: fractionalProgress,
+                units: farm.units ? farm.units.map(unit => ({
+                    id: unit.id,
+                    unit_number: unit.unit_number,
+                    size_in_unit: unit.size_in_unit,
+                    price: unit.price,
+                    crop_type: unit.crop_type,
+                    crop_description: unit.crop_description,
+                    status: unit.status
+                })) : []
             };
         });
 

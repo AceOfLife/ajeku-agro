@@ -1,4 +1,4 @@
-// Error Handling
+// server.js (UPDATED with farmUnitRoutes)
 const express = require('express');
 const http = require('http');
 const bodyParser = require('body-parser');
@@ -18,6 +18,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const farmRoutes = require('./routes/farmRoutes');
 const farmManagerRoutes = require('./routes/farmManagerRoutes');
 const harvestRoutes = require('./routes/harvestRoutes');
+const farmUnitRoutes = require('./routes/farmUnitRoutes');
 const cookieParser = require('cookie-parser');
 
 const app = express();
@@ -58,7 +59,6 @@ app.use(favicon(path.join(__dirname, 'favicon.png')));
 app.use(express.static(path.join(__dirname)));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes
 app.use("/api", paymentRoutes);
 app.use('/transactions', transactionRoutes);
 app.use('/api/bank-of-heaven', bankOfHeavenRoutes);
@@ -66,6 +66,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/investors', investorRoutes);
 app.use('/api/farms', farmRoutes);
+app.use('/api/farms/:farmId/units', farmUnitRoutes);
 app.use('/api/farm-managers', farmManagerRoutes);
 app.use('/api/harvest', harvestRoutes);
 app.use('/auth', authRoutes);
