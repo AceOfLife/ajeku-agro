@@ -192,8 +192,7 @@ exports.purchaseUnit = async (req, res) => {
     const existingOwnership = await FarmUnitOwnership.findOne({
       where: {
         farm_unit_id: unitId,
-        user_id: userId,
-        status: 'active'
+        user_id: userId
       }
     });
 
