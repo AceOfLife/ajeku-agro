@@ -23,10 +23,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       comment: 'e.g., "Unit A1", "Plot 1"',
     },
-    size_in_unit: {
-      type: DataTypes.DECIMAL(10, 2),
+    size_of_unit: {
+      type: DataTypes.STRING,
       allowNull: false,
-      comment: 'Size of this unit in hectares',
+      comment: 'Size of this unit (e.g., "5 hectares", "2 acres")',
     },
     price: {
       type: DataTypes.DECIMAL(15, 2),
@@ -35,12 +35,10 @@ module.exports = (sequelize, DataTypes) => {
     crop_type: {
       type: DataTypes.STRING,
       allowNull: false,
-      comment: 'Crop grown on this specific unit',
     },
     crop_description: {
       type: DataTypes.TEXT,
       allowNull: true,
-      comment: 'Variety, quality, farming method for this unit',
     },
     planting_date: {
       type: DataTypes.DATEONLY,
@@ -62,6 +60,26 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
     },
+    soil_type: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Soil type for this specific unit',
+    },
+    image_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Image URL for this specific unit',
+    },
+    gps_coordinates: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'GPS coordinates for this specific unit',
+    },
+    irrigation_method: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Irrigation method for this specific unit',
+    },
     status: {
       type: DataTypes.ENUM('available', 'reserved', 'sold'),
       defaultValue: 'available',
@@ -77,7 +95,6 @@ module.exports = (sequelize, DataTypes) => {
     nft_token_id: {
       type: DataTypes.STRING,
       allowNull: true,
-      comment: 'NFT deed token ID for this unit',
     },
     createdAt: {
       allowNull: false,
