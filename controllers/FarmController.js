@@ -98,7 +98,7 @@ exports.createFarm = async (req, res) => {
             const {
                 name, location, address, description, total_farm_size, measurement_unit,
                 farm_manager, soil_type, irrigation_method, physical_delivery_offered,
-                delivery_regions, farm_valuation,
+                delivery_regions, farm_valuation, image_url,
                 is_fractional, isInstallment, isFractionalInstallment, isFractionalDuration,
                 percentage, duration, monthly_expense, manager_id
             } = req.body;
@@ -133,6 +133,7 @@ exports.createFarm = async (req, res) => {
                 measurement_unit: measurement_unit || "hectares",
                 farm_manager: farm_manager || "",
                 manager_id: manager_id || null,
+                image_url: image_url || null,
                 soil_type: soil_type || "",
                 irrigation_method: irrigation_method || "",
                 physical_delivery_offered: ["true", "1", true].includes(physical_delivery_offered),
