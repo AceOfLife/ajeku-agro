@@ -38,7 +38,7 @@ exports.getAllUnits = async (req, res) => {
     if (sort_by === 'price') {
       order.push(['price', sort_order]);
     } else if (sort_by === 'size') {
-      order.push(['size_in_unit', sort_order]);
+      order.push(['size_of_unit', sort_order]);
     } else if (sort_by === 'created_at') {
       order.push(['createdAt', sort_order]);
     } else if (sort_by === 'harvest_date') {

@@ -156,7 +156,7 @@ exports.createFarm = async (req, res) => {
                     {
                         model: FarmUnit,
                         as: 'units',
-                        attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                        attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                     }
                 ]
             });
@@ -210,7 +210,7 @@ exports.updateFarm = async (req, res) => {
                     {
                         model: FarmUnit,
                         as: 'units',
-                        attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                        attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                     }
                 ]
             });
@@ -280,7 +280,7 @@ exports.getAllFarms = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -355,7 +355,7 @@ exports.getFarmById = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -492,7 +492,7 @@ exports.getFilteredFarms = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
         });
@@ -588,7 +588,7 @@ exports.getRecentFarms = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -621,7 +621,7 @@ exports.getMostViewedFarms = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -688,7 +688,7 @@ exports.getUserFarms = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -706,7 +706,7 @@ exports.getUserFarms = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -730,7 +730,7 @@ exports.getUserFarms = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ]
         });
@@ -953,7 +953,7 @@ exports.getTopPerformingFarm = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
             limit: 100
@@ -1255,7 +1255,7 @@ exports.getUserFarmsAnalytics = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
             distinct: true
@@ -1594,7 +1594,7 @@ exports.getRelistedFarms = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
             order: [['updatedAt', 'DESC']]
@@ -1657,7 +1657,7 @@ exports.getAssemblage = async (req, res) => {
                 {
                     model: FarmUnit,
                     as: 'units',
-                    attributes: ['id', 'unit_number', 'size_in_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                    attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                 }
             ],
             attributes: [
@@ -1758,7 +1758,7 @@ exports.getAssemblage = async (req, res) => {
                 units: farm.units ? farm.units.map(unit => ({
                     id: unit.id,
                     unit_number: unit.unit_number,
-                    size_in_unit: unit.size_in_unit,
+                    size_of_unit: unit.size_of_unit,
                     price: unit.price,
                     crop_type: unit.crop_type,
                     crop_description: unit.crop_description,
