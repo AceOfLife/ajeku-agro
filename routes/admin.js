@@ -53,6 +53,8 @@ router.post('/farm-managers', authenticate, authorizeAdmin, FarmManagerControlle
 router.put('/farm-managers/:id', authenticate, authorizeAdmin, FarmManagerController.updateFarmManager);
 router.delete('/farm-managers/:id', authenticate, authorizeAdmin, FarmManagerController.deleteFarmManager);
 
+router.post('/farm-managers/create-with-user', authenticate, authorizeAdmin, FarmManagerController.createFarmManagerWithUser);
+
 // Farm routes
 router.get('/farms', authenticate, FarmController.getAllFarms);
 router.get('/farms/filter', authenticate, FarmController.getFilteredFarms);
