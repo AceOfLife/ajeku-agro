@@ -57,7 +57,6 @@ exports.createFarmManagerWithUser = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { 
-      name, 
       email, 
       password, 
       license_number, 
@@ -81,15 +80,18 @@ exports.createFarmManagerWithUser = async (req, res) => {
       });
     }
 
+    // Build name from firstName and lastName
+    const fullName = `${firstName} ${lastName}`.trim();
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create user with farm_manager role
     const newUser = await User.create({
-      name,
-      firstName: firstName || name.split(' ')[0] || '',
-      lastName: lastName || name.split(' ').slice(1).join(' ') || '',
+      name: fullName,
+      firstName: firstName || '',
+      lastName: lastName || '',
       email,
       password: hashedPassword,
       role: 'farm_manager'
@@ -111,7 +113,7 @@ exports.createFarmManagerWithUser = async (req, res) => {
     const notification = await Notification.create({
       user_id: newUser.id,
       title: 'Welcome to Ajeku Agro!',
-      message: `Hi ${name}, your farm manager account has been created. You can now manage farms on the platform.`,
+      message: `Hi ${fullName}, your farm manager account has been created. You can now manage farms on the platform.`,
       type: 'system',
       is_read: false
     }, { transaction: t });
@@ -127,7 +129,7 @@ exports.createFarmManagerWithUser = async (req, res) => {
         Notification.create({
           user_id: admin.id,
           title: 'New Farm Manager Created',
-          message: `Admin created a new farm manager: ${name} (${email})`,
+          message: `Admin created a new farm manager: ${fullName} (${email})`,
           type: 'admin_alert',
           is_read: false,
           metadata: {
@@ -150,7 +152,7 @@ exports.createFarmManagerWithUser = async (req, res) => {
       admins.forEach(admin => {
         io.to(`user_${admin.id}`).emit('new_notification', {
           event: 'admin_alert',
-          data: { message: `New farm manager created: ${name}` }
+          data: { message: `New farm manager created: ${fullName}` }
         });
       });
     }
