@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 0,
     },
     specialization: {
-      type: DataTypes.ENUM('Crop', 'Livestock', 'Mixed', 'Organic'),
+      type: DataTypes.ENUM('Crop', 'Weeding', 'Mixed', 'Security'),
       allowNull: true,
     },
     contact_phone: {

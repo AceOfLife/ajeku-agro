@@ -178,3 +178,105 @@ exports.createFarmManagerWithUser = async (req, res) => {
     });
   }
 };
+
+// controllers/FarmManagerController.js - Add these functions
+
+// Get all specializations
+exports.getSpecializations = async (req, res) => {
+  try {
+    // Query the ENUM type from PostgreSQL
+    const [result] = await sequelize.query(`
+      SELECT enumlabel 
+      FROM pg_enum 
+      WHERE enumtypid = (
+        SELECT oid 
+        FROM pg_type 
+        WHERE typname = 'enum_FarmManagers_specialization'
+      )
+      ORDER BY enumsortorder;
+    `);
+
+    const specializations = result.map(row => row.enumlabel);
+
+    res.status(200).json({
+      success: true,
+      specializations
+    });
+  } catch (error) {
+    console.error('Error fetching specializations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching specializations',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Add new specialization (Admin only)
+exports.addSpecialization = async (req, res) => {
+  try {
+    const { specialization } = req.body;
+
+    if (!specialization || typeof specialization !== 'string' || specialization.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Specialization name is required'
+      });
+    }
+
+    // Check if specialization already exists
+    const [existing] = await sequelize.query(`
+      SELECT enumlabel 
+      FROM pg_enum 
+      WHERE enumtypid = (
+        SELECT oid 
+        FROM pg_type 
+        WHERE typname = 'enum_FarmManagers_specialization'
+      )
+      AND enumlabel = '${specialization}';
+    `);
+
+    if (existing.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Specialization '${specialization}' already exists`
+      });
+    }
+
+    // Add new value to ENUM
+    await sequelize.query(`
+      ALTER TYPE "enum_FarmManagers_specialization" ADD VALUE '${specialization}';
+    `);
+
+    // Get updated list
+    const [result] = await sequelize.query(`
+      SELECT enumlabel 
+      FROM pg_enum 
+      WHERE enumtypid = (
+        SELECT oid 
+        FROM pg_type 
+        WHERE typname = 'enum_FarmManagers_specialization'
+      )
+      ORDER BY enumsortorder;
+    `);
+
+    const specializations = result.map(row => row.enumlabel);
+
+    // Log the action
+    console.log(`Admin ${req.user.id} added new specialization: ${specialization}`);
+
+    res.status(201).json({
+      success: true,
+      message: `Specialization '${specialization}' added successfully`,
+      specializations
+    });
+
+  } catch (error) {
+    console.error('Error adding specialization:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding specialization',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};

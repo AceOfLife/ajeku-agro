@@ -55,6 +55,10 @@ router.delete('/farm-managers/:id', authenticate, authorizeAdmin, FarmManagerCon
 
 router.post('/farm-managers/create-with-user', authenticate, authorizeAdmin, FarmManagerController.createFarmManagerWithUser);
 
+// Farm Manager Specializations
+router.get('/specializations', authenticate, FarmManagerController.getSpecializations);
+router.post('/specializations', authenticate, authorizeAdmin, FarmManagerController.addSpecialization);
+
 // Farm routes
 router.get('/farms', authenticate, FarmController.getAllFarms);
 router.get('/farms/filter', authenticate, FarmController.getFilteredFarms);
