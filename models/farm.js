@@ -17,9 +17,15 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    gps_coordinates: {
-      type: DataTypes.STRING,
+    latitude: {
+      type: DataTypes.DECIMAL(10, 8),
       allowNull: true,
+      comment: 'Latitude coordinate of the farm',
+    },
+    longitude: {
+      type: DataTypes.DECIMAL(11, 8),
+      allowNull: true,
+      comment: 'Longitude coordinate of the farm',
     },
     measurement_unit: {
       type: DataTypes.STRING,
@@ -45,6 +51,11 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id',
       },
       allowNull: false,
+    },
+    image_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Cover image URL for the farm',
     },
     soil_type: {
       type: DataTypes.STRING,
