@@ -51,7 +51,6 @@ exports.deleteFarmManager = async (req, res) => {
   }
 };
 
-// controllers/FarmManagerController.js - Add this new function
 
 exports.createFarmManagerWithUser = async (req, res) => {
   const t = await sequelize.transaction();
@@ -160,26 +159,40 @@ exports.createFarmManagerWithUser = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Farm manager created successfully',
-      farmManager: newFarmManager,
+      farmManager: {
+        id: newFarmManager.id,
+        user_id: newFarmManager.user_id,
+        license_number: newFarmManager.license_number,
+        years_of_experience: newFarmManager.years_of_experience,
+        specialization: newFarmManager.specialization,
+        contact_phone: newFarmManager.contact_phone,
+        createdAt: newFarmManager.createdAt,
+        updatedAt: newFarmManager.updatedAt
+      },
       user: {
         id: newUser.id,
         name: newUser.name,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
         email: newUser.email,
         role: newUser.role
       }
     });
 
   } catch (error) {
-    await t.rollback();
+    if (t && !t.finished) {
+      await t.rollback();
+    }
     console.error('Error creating farm manager with user:', error);
     res.status(500).json({ 
+      success: false,
       message: 'Error creating farm manager', 
       error: process.env.NODE_ENV === 'development' ? error.message : undefined 
     });
   }
 };
 
-// controllers/FarmManagerController.js - Add these functions
+
 
 // Get all specializations
 exports.getSpecializations = async (req, res) => {
