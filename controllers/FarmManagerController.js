@@ -2,31 +2,88 @@ const { FarmManager, User } = require('../models');
 const bcrypt = require('bcryptjs');
 const { sequelize } = require('../models');
 
+// ===== GET ALL FARM MANAGERS (with first and last name) =====
 exports.getAllFarmManagers = async (req, res) => {
   try {
-    const farmManagers = await FarmManager.findAll();
+    const farmManagers = await FarmManager.findAll({
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'name']
+        }
+      ]
+    });
     res.status(200).json(farmManagers);
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving farm managers', error });
   }
 };
 
+// ===== GET FARM MANAGER BY ID (with first and last name) =====
+exports.getFarmManagerById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const farmManager = await FarmManager.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'name']
+        }
+      ]
+    });
+
+    if (!farmManager) {
+      return res.status(404).json({ message: 'Farm manager not found' });
+    }
+
+    res.status(200).json(farmManager);
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving farm manager', error });
+  }
+};
+
+// ===== CREATE FARM MANAGER (from existing user) =====
 exports.createFarmManager = async (req, res) => {
   try {
     const newFarmManager = await FarmManager.create(req.body);
-    res.status(201).json(newFarmManager);
+
+    // Fetch the created farm manager with user details
+    const farmManagerWithUser = await FarmManager.findByPk(newFarmManager.id, {
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'name']
+        }
+      ]
+    });
+
+    res.status(201).json(farmManagerWithUser);
   } catch (error) {
     res.status(400).json({ message: 'Error creating farm manager', error });
   }
 };
 
+// ===== UPDATE FARM MANAGER =====
 exports.updateFarmManager = async (req, res) => {
   try {
     const { id } = req.params;
     const [updated] = await FarmManager.update(req.body, { where: { id } });
 
     if (updated) {
-      const updatedFarmManager = await FarmManager.findOne({ where: { id } });
+      const updatedFarmManager = await FarmManager.findOne({
+        where: { id },
+        include: [
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'firstName', 'lastName', 'email', 'name']
+          }
+        ]
+      });
       res.status(200).json(updatedFarmManager);
     } else {
       res.status(404).json({ message: 'Farm manager not found' });
@@ -36,6 +93,7 @@ exports.updateFarmManager = async (req, res) => {
   }
 };
 
+// ===== DELETE FARM MANAGER =====
 exports.deleteFarmManager = async (req, res) => {
   try {
     const { id } = req.params;
@@ -51,31 +109,31 @@ exports.deleteFarmManager = async (req, res) => {
   }
 };
 
-
+// ===== CREATE FARM MANAGER WITH USER (Admin creates both) =====
 exports.createFarmManagerWithUser = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { 
-      email, 
-      password, 
-      license_number, 
-      years_of_experience, 
-      specialization, 
+    const {
+      email,
+      password,
+      license_number,
+      years_of_experience,
+      specialization,
       contact_phone,
       firstName,
       lastName
     } = req.body;
 
     // Check if user already exists
-    const existingUser = await User.findOne({ 
+    const existingUser = await User.findOne({
       where: { email },
       transaction: t
     });
 
     if (existingUser) {
       await t.rollback();
-      return res.status(400).json({ 
-        message: 'Email is already registered' 
+      return res.status(400).json({
+        message: 'Email is already registered'
       });
     }
 
@@ -108,7 +166,7 @@ exports.createFarmManagerWithUser = async (req, res) => {
     // Send welcome notification
     const Notification = require('../models').Notification;
     const io = req.app.get('socketio');
-    
+
     const notification = await Notification.create({
       user_id: newUser.id,
       title: 'Welcome to Ajeku Agro!',
@@ -118,13 +176,13 @@ exports.createFarmManagerWithUser = async (req, res) => {
     }, { transaction: t });
 
     // Notify admin
-    const admins = await User.findAll({ 
+    const admins = await User.findAll({
       where: { role: 'admin' },
       transaction: t
     });
 
     await Promise.all(
-      admins.map(admin => 
+      admins.map(admin =>
         Notification.create({
           user_id: admin.id,
           title: 'New Farm Manager Created',
@@ -156,27 +214,21 @@ exports.createFarmManagerWithUser = async (req, res) => {
       });
     }
 
+    // Fetch the created farm manager with user details for response
+    const farmManagerWithUser = await FarmManager.findByPk(newFarmManager.id, {
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'name']
+        }
+      ]
+    });
+
     res.status(201).json({
       success: true,
       message: 'Farm manager created successfully',
-      farmManager: {
-        id: newFarmManager.id,
-        user_id: newFarmManager.user_id,
-        license_number: newFarmManager.license_number,
-        years_of_experience: newFarmManager.years_of_experience,
-        specialization: newFarmManager.specialization,
-        contact_phone: newFarmManager.contact_phone,
-        createdAt: newFarmManager.createdAt,
-        updatedAt: newFarmManager.updatedAt
-      },
-      user: {
-        id: newUser.id,
-        name: newUser.name,
-        firstName: newUser.firstName,
-        lastName: newUser.lastName,
-        email: newUser.email,
-        role: newUser.role
-      }
+      farmManager: farmManagerWithUser
     });
 
   } catch (error) {
@@ -184,26 +236,23 @@ exports.createFarmManagerWithUser = async (req, res) => {
       await t.rollback();
     }
     console.error('Error creating farm manager with user:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Error creating farm manager', 
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+      message: 'Error creating farm manager',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-
-
-// Get all specializations
+// ===== GET ALL SPECIALIZATIONS =====
 exports.getSpecializations = async (req, res) => {
   try {
-    // Query the ENUM type from PostgreSQL
     const [result] = await sequelize.query(`
-      SELECT enumlabel 
-      FROM pg_enum 
+      SELECT enumlabel
+      FROM pg_enum
       WHERE enumtypid = (
-        SELECT oid 
-        FROM pg_type 
+        SELECT oid
+        FROM pg_type
         WHERE typname = 'enum_FarmManagers_specialization'
       )
       ORDER BY enumsortorder;
@@ -225,7 +274,7 @@ exports.getSpecializations = async (req, res) => {
   }
 };
 
-// Add new specialization (Admin only)
+// ===== ADD NEW SPECIALIZATION (Admin only) =====
 exports.addSpecialization = async (req, res) => {
   try {
     const { specialization } = req.body;
@@ -239,11 +288,11 @@ exports.addSpecialization = async (req, res) => {
 
     // Check if specialization already exists
     const [existing] = await sequelize.query(`
-      SELECT enumlabel 
-      FROM pg_enum 
+      SELECT enumlabel
+      FROM pg_enum
       WHERE enumtypid = (
-        SELECT oid 
-        FROM pg_type 
+        SELECT oid
+        FROM pg_type
         WHERE typname = 'enum_FarmManagers_specialization'
       )
       AND enumlabel = '${specialization}';
@@ -263,11 +312,11 @@ exports.addSpecialization = async (req, res) => {
 
     // Get updated list
     const [result] = await sequelize.query(`
-      SELECT enumlabel 
-      FROM pg_enum 
+      SELECT enumlabel
+      FROM pg_enum
       WHERE enumtypid = (
-        SELECT oid 
-        FROM pg_type 
+        SELECT oid
+        FROM pg_type
         WHERE typname = 'enum_FarmManagers_specialization'
       )
       ORDER BY enumsortorder;
@@ -275,7 +324,6 @@ exports.addSpecialization = async (req, res) => {
 
     const specializations = result.map(row => row.enumlabel);
 
-    // Log the action
     console.log(`Admin ${req.user.id} added new specialization: ${specialization}`);
 
     res.status(201).json({

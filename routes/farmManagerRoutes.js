@@ -6,6 +6,9 @@ const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware'
 // Public routes (authenticated users can view farm managers)
 router.get('/', authenticate, FarmManagerController.getAllFarmManagers);
 
+// Public routes (authenticated users can view farm manager by id)
+router.get('/farm-managers/:id', authenticate, FarmManagerController.getFarmManagerById);
+
 // Admin only routes
 router.post('/', authenticate, authorizeAdmin, FarmManagerController.createFarmManager);
 router.put('/:id', authenticate, authorizeAdmin, FarmManagerController.updateFarmManager);
