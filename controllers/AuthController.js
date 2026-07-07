@@ -1,42 +1,53 @@
 // controllers/AuthController.js
-const { User } = require('../models'); // Import User model
-const bcrypt = require('bcryptjs'); // Import bcrypt for password hashing
-const jwt = require('jsonwebtoken'); // Import JWT for token generation
-require('dotenv').config(); // Load environment variables
+const { User } = require('../models');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+require('dotenv').config();
 
-// User login
+// Generate refresh token
+const generateRefreshToken = () => {
+  return crypto.randomBytes(40).toString('hex');
+};
+
 // User login
 const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Check if user exists in the database
     const user = await User.findOne({ where: { email } });
 
-    // If user is not found
     if (!user) {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
-    // Compare provided password with hashed password in the database
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid email or password' });
     }
 
-    // Generate a JWT token
-    const token = jwt.sign(
+    // Generate access token
+    const accessToken = jwt.sign(
       { 
         id: user.id, 
-        role: user.role 
+        role: user.role,
+        email: user.email
       },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    // Return the token and user details (matching Ajeku Realty format)
+    // Generate refresh token
+    const refreshToken = generateRefreshToken();
+
+    // Save refresh token in database
+    user.refresh_token = refreshToken;
+    await user.save();
+
     res.json({
-      token,
+      accessToken,
+      refreshToken,
+      expiresIn: 3600,
       user: {
         id: user.id,
         name: user.name,
@@ -57,6 +68,7 @@ const login = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 };
@@ -66,43 +78,41 @@ const signup = async (req, res) => {
   const { name, email, password, role, firstName, lastName } = req.body;
 
   try {
-    // Check if the user already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already in use' });
     }
 
-    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Extract firstName and lastName from name if not provided
     const finalFirstName = firstName || (name ? name.split(' ')[0] : '');
     const finalLastName = lastName || (name ? name.split(' ').slice(1).join(' ') : '');
 
-    // Create the user in the database
     const newUser = await User.create({
       name,
       firstName: finalFirstName,
       lastName: finalLastName,
       email,
       password: hashedPassword,
-      role: role || 'client'
+      role: role || 'client',
+      refresh_token: generateRefreshToken()
     });
 
-    // Generate JWT token (matching Ajeku Realty format)
-    const token = jwt.sign(
+    const accessToken = jwt.sign(
       { 
         id: newUser.id, 
-        role: newUser.role 
+        role: newUser.role,
+        email: newUser.email
       },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    // Return the same response format as Ajeku Realty
     res.status(201).json({
       message: 'User created successfully',
-      token: token,
+      accessToken,
+      refreshToken: newUser.refresh_token,
+      expiresIn: 3600,
       user: newUser
     });
 
@@ -112,7 +122,77 @@ const signup = async (req, res) => {
   }
 };
 
+// Refresh access token
+const refresh = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token is required' });
+    }
+
+    const user = await User.findOne({ 
+      where: { refresh_token: refreshToken }
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid refresh token' });
+    }
+
+    // Generate new access token
+    const accessToken = jwt.sign(
+      { 
+        id: user.id, 
+        role: user.role,
+        email: user.email
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // Generate new refresh token (rotation)
+    const newRefreshToken = generateRefreshToken();
+    user.refresh_token = newRefreshToken;
+    await user.save();
+
+    res.json({
+      accessToken,
+      refreshToken: newRefreshToken,
+      expiresIn: 3600
+    });
+
+  } catch (error) {
+    console.error('Refresh error:', error);
+    res.status(500).json({ message: 'Error refreshing token', error });
+  }
+};
+
+// Logout - clear refresh token
+const logout = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (refreshToken) {
+      const user = await User.findOne({ 
+        where: { refresh_token: refreshToken }
+      });
+      
+      if (user) {
+        user.refresh_token = null;
+        await user.save();
+      }
+    }
+
+    res.status(200).json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ message: 'Error logging out', error });
+  }
+};
+
 module.exports = {
   login,
-  signup
+  signup,
+  refresh,
+  logout
 };

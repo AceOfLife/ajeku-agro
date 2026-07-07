@@ -75,6 +75,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,  // Changed from ENUM
       defaultValue: 'sell',
     },
+    refresh_token: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   }, {
     tableName: 'Users',
     underscored: false,
