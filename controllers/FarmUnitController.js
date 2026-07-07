@@ -2,8 +2,6 @@
 const { FarmUnit, Farm, FarmUnitOwnership, User } = require('../models');
 const { Op } = require('sequelize');
 
-// controllers/FarmUnitController.js - Updated createUnits
-
 exports.createUnits = async (req, res) => {
   try {
     const { farmId } = req.params;
@@ -69,6 +67,13 @@ exports.getUnits = async (req, res) => {
 
     const units = await FarmUnit.findAll({
       where,
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
       include: [
         {
           model: User,
@@ -96,6 +101,13 @@ exports.getUnit = async (req, res) => {
 
     const unit = await FarmUnit.findOne({
       where: { id: unitId, farm_id: farmId },
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
       include: [
         {
           model: Farm,
@@ -139,10 +151,28 @@ exports.updateUnit = async (req, res) => {
 
     await unit.update(updateData);
 
+    const updatedUnit = await FarmUnit.findOne({
+      where: { id: unitId, farm_id: farmId },
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
+      include: [
+        {
+          model: User,
+          as: 'currentOwner',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
     res.status(200).json({
       success: true,
       message: 'Unit updated successfully',
-      unit
+      unit: updatedUnit
     });
   } catch (error) {
     console.error('Error updating unit:', error);
@@ -184,7 +214,14 @@ exports.purchaseUnit = async (req, res) => {
     const userId = req.user.id;
 
     const unit = await FarmUnit.findOne({
-      where: { id: unitId, farm_id: farmId }
+      where: { id: unitId, farm_id: farmId },
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ]
     });
 
     if (!unit) {
@@ -219,11 +256,29 @@ exports.purchaseUnit = async (req, res) => {
       current_owner_id: userId
     });
 
+    const updatedUnit = await FarmUnit.findOne({
+      where: { id: unitId, farm_id: farmId },
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
+      include: [
+        {
+          model: User,
+          as: 'currentOwner',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
     res.status(200).json({
       success: true,
       message: 'Unit purchased successfully',
       ownership,
-      unit
+      unit: updatedUnit
     });
   } catch (error) {
     console.error('Error purchasing unit:', error);
@@ -240,6 +295,13 @@ exports.getAvailableUnits = async (req, res) => {
         farm_id: farmId,
         status: 'available'
       },
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
       order: [['price', 'ASC']]
     });
 

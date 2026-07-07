@@ -123,7 +123,7 @@ exports.forgotPassword = async (req, res) => {
     user.resetTokenExpiration = resetTokenExpiration;
     await user.save();
 
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_URL || 'https://ajeku-agro.vercel.app'}/reset-password?token=${resetToken}`;
     await sendEmail({
       to: email,
       subject: 'Reset your password',

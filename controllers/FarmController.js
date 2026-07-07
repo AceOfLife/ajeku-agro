@@ -158,7 +158,7 @@ exports.createFarm = async (req, res) => {
                     {
                         model: FarmUnit,
                         as: 'units',
-                        attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
+                        attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'image_url', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
                     }
                 ]
             });

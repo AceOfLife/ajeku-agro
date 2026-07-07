@@ -70,6 +70,13 @@ exports.getAllUnits = async (req, res) => {
 
     const { count, rows } = await FarmUnit.findAndCountAll({
       where,
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
       include,
       order,
       limit: parseInt(limit),
@@ -128,6 +135,13 @@ exports.getUnitStats = async (req, res) => {
 
     const recentListings = await FarmUnit.findAll({
       where: { status: 'available' },
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
       include: [
         {
           model: Farm,
@@ -172,6 +186,13 @@ exports.getFeaturedUnits = async (req, res) => {
 
     const units = await FarmUnit.findAll({
       where: { status: 'available' },
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
       include: [
         {
           model: Farm,
@@ -206,6 +227,13 @@ exports.getUnitById = async (req, res) => {
     const { unitId } = req.params;
 
     const unit = await FarmUnit.findByPk(unitId, {
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
       include: [
         {
           model: Farm,
@@ -259,6 +287,13 @@ exports.getUnitByFarm = async (req, res) => {
         farm_id: farmId,
         status: status
       },
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
       include: [
         {
           model: User,
@@ -343,6 +378,13 @@ exports.getTopPerformingUnits = async (req, res) => {
 
     const units = await FarmUnit.findAll({
       where: { status: 'sold' },
+      attributes: [
+        'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
+        'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
+        'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
+      ],
       include: [
         {
           model: Farm,
