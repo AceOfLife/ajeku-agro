@@ -3,15 +3,24 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 10
+      }
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/server.js"
+      "dest": "server.js"
     }
   ],
+  "functions": {
+    "server.js": {
+      "maxDuration": 10,
+      "memory": 1024
+    }
+  },
   "env": {
     "DATABASE_URL": "postgresql://ajeku_agro_user:l4sOUszL7UTpe70gZHzMraPJ5HL1s2pk@dpg-d8jt0csvikkc73889b00-a.oregon-postgres.render.com/ajeku_agro",
     "NODE_ENV": "production",

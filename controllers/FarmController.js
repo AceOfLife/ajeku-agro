@@ -87,11 +87,30 @@ const splitToArray = (field) => {
 
 const axios = require("axios");
 
+// controllers/FarmController.js - createFarm (Updated)
+
 exports.createFarm = async (req, res) => {
     upload(req, res, async (err) => {
         if (err) {
             console.error("Multer error:", err);
-            return res.status(400).json({ message: "Error uploading images", error: err });
+            
+            // ===== FILE SIZE ERROR HANDLING =====
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({ 
+                    message: 'File too large. Maximum file size is 10MB per image.' 
+                });
+            }
+            
+            if (err.code === 'LIMIT_FILE_COUNT') {
+                return res.status(400).json({ 
+                    message: 'Too many files. Maximum is 15 images.' 
+                });
+            }
+            
+            return res.status(400).json({ 
+                message: "Error uploading images", 
+                error: err.message 
+            });
         }
 
         try {

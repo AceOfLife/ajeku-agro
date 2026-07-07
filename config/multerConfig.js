@@ -1,29 +1,40 @@
+// config/multerConfig.js
 const multer = require('multer');
-const cloudinary = require('./cloudinaryConfig'); // Import Cloudinary configuration
+const cloudinary = require('./cloudinaryConfig');
 
-console.log('Cloudinary:', cloudinary);  // Log to check if cloudinary is correctly imported
+const storage = multer.memoryStorage();
 
-const storage = multer.memoryStorage(); // Store the file in memory instead of disk
-const upload = multer({ storage: storage }).array('images', 15); // Upload up to 15 files with the field name 'images'
+// Configure multer with file size limits
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit per file
+        files: 15 // Max 15 files
+    }
+}).array('images', 15);
 
 async function uploadImagesToCloudinary(files) {
+    if (!files || files.length === 0) {
+        return [];
+    }
+
     const uploadPromises = files.map(file =>
         new Promise((resolve, reject) => {
-            // Log to check if cloudinary.uploader is available
-            console.log('Cloudinary uploader:', cloudinary.uploader);
-
-            const stream = cloudinary.uploader.upload_stream(
-                { folder: 'farm_images' }, 
-                (error, result) => {
-                    if (error) {
-                        reject(error); // Reject the promise if an error occurs
-                    } else {
-                        resolve(result.secure_url); // Resolve with the secure URL of the uploaded image
+            try {
+                const stream = cloudinary.uploader.upload_stream(
+                    { folder: 'farm_images' },
+                    (error, result) => {
+                        if (error) {
+                            reject(error);
+                        } else {
+                            resolve(result.secure_url);
+                        }
                     }
-                }
-            );
-            
-            stream.end(file.buffer); // End the stream with the image buffer
+                );
+                stream.end(file.buffer);
+            } catch (error) {
+                reject(error);
+            }
         })
     );
 
