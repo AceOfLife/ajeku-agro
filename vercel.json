@@ -22,7 +22,7 @@
     }
   },
   "env": {
-    "DATABASE_URL": "postgresql://ajeku_agro_4hny_user:X0cR0b48wwamSFj1en9YHElKSlaieLjA@dpg-d97nqnetrd3s739d9dog-a.ohio-postgres.render.com/ajeku_agro_4hny",
+    "DATABASE_URL": "postgresql://ajeku_agro_jifb_user:sOhWmMo6CPr9uDFvAifpBjYv8AdK2YrO@dpg-d97u18m7r5hc73deful0-a.oregon-postgres.render.com/ajeku_agro_jifb",
     "NODE_ENV": "production",
     "JWT_SECRET": "your_very_secure_secret_key",
     "EMAIL_USER": "teddyogbonnaya@gmail.com",
