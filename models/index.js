@@ -1,4 +1,4 @@
-// models/index.js
+// models/index.js (UPDATED - includes FarmUnit)
 'use strict';
 
 const pg = require('pg');
@@ -11,8 +11,6 @@ const config = require('../config/config.json')[env];
 const db = {};
 
 let sequelize;
-
-// Try DATABASE_URL first, then config.json
 if (process.env.DATABASE_URL) {
   console.log("Using DATABASE_URL for connection...");
 
@@ -23,55 +21,35 @@ if (process.env.DATABASE_URL) {
     dialectOptions: {
       ssl: {
         require: true,
-        rejectUnauthorized: false
-      }
+        rejectUnauthorized: false,
+        sslmode: 'require',
+      },
     },
-    logging: false,
+    logging: console.log,
     pool: {
       max: 5,
       min: 0,
       acquire: 30000,
-      idle: 10000
-    }
+      idle: 10000,
+    },
+    retry: {
+      max: 3,
+    },
   });
 
 } else {
-  console.log("Using config.json for database connection...");
-  sequelize = new Sequelize(
-    config.database,
-    config.username,
-    config.password,
-    {
-      host: config.host,
-      dialect: config.dialect,
-      port: config.port,
-      dialectOptions: config.dialectOptions || {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false
-        }
-      },
-      logging: false,
-      pool: config.pool || {
-        max: 5,
-        min: 0,
-        acquire: 30000,
-        idle: 10000
-      }
-    }
-  );
+  console.log("Using local config for database connection...");
+  sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
-// Test the connection
 sequelize.authenticate()
   .then(() => {
-    console.log("✅ Database connection successful");
+    console.log("Database connection successful");
   })
   .catch((error) => {
-    console.error("❌ Error connecting to the database:", error.message);
+    console.error("Error connecting to the database:", error);
   });
 
-// Import your models
 fs.readdirSync(__dirname)
   .filter(file => {
     return (
@@ -85,7 +63,6 @@ fs.readdirSync(__dirname)
     db[model.name] = model;
   });
 
-// Set up associations
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
