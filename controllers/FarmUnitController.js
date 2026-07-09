@@ -2,6 +2,8 @@
 const { FarmUnit, Farm, FarmUnitOwnership, User } = require('../models');
 const { Op } = require('sequelize');
 
+// controllers/FarmUnitController.js - createUnits (UPDATED)
+
 exports.createUnits = async (req, res) => {
   try {
     const { farmId } = req.params;
@@ -34,6 +36,14 @@ exports.createUnits = async (req, res) => {
         image_url: unitData.image_url || null,
         gps_coordinates: unitData.gps_coordinates || null,
         irrigation_method: unitData.irrigation_method || null,
+        physical_delivery_offered: unitData.physical_delivery_offered || false,
+        isInstallment: unitData.isInstallment || false,
+        is_fractional: unitData.is_fractional || true,
+        isFractionalInstallment: unitData.isFractionalInstallment || false,
+        isFractionalDuration: unitData.isFractionalDuration || null,
+        duration: unitData.duration || null,
+        percentage: unitData.percentage || null,
+        monthly_expense: unitData.monthly_expense || null,
         status: 'available'
       });
       createdUnits.push(unit);

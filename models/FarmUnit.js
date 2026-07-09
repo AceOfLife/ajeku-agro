@@ -92,6 +92,43 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id',
       },
     },
+    physical_delivery_offered: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Whether physical delivery is offered for this unit',
+    },
+    isInstallment: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    isFractionalInstallment: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+    },
+    isFractionalDuration: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    duration: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+    },
+    percentage: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    monthly_expense: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    is_fractional: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      allowNull: false,
+    },
     nft_token_id: {
       type: DataTypes.STRING,
       allowNull: true,

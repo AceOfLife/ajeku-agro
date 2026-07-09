@@ -89,12 +89,13 @@ const axios = require("axios");
 
 // controllers/FarmController.js - createFarm (Updated)
 
+// controllers/FarmController.js - createFarm (UPDATED)
+
 exports.createFarm = async (req, res) => {
     upload(req, res, async (err) => {
         if (err) {
             console.error("Multer error:", err);
             
-            // ===== FILE SIZE ERROR HANDLING =====
             if (err.code === 'LIMIT_FILE_SIZE') {
                 return res.status(400).json({ 
                     message: 'File too large. Maximum file size is 10MB per image.' 
@@ -116,32 +117,9 @@ exports.createFarm = async (req, res) => {
         try {
             const {
                 name, location, address, description, total_farm_size, measurement_unit,
-                farm_manager, soil_type, irrigation_method, physical_delivery_offered,
-                delivery_regions, farm_valuation, image_url, latitude, longitude,
-                is_fractional, isInstallment, isFractionalInstallment, isFractionalDuration,
-                percentage, duration, monthly_expense, manager_id
+                farm_manager, soil_type, irrigation_method, delivery_regions, farm_valuation, 
+                image_url, latitude, longitude, manager_id
             } = req.body;
-
-            const parsedFractional = ["true", "1", true].includes(is_fractional);
-            const parsedIsInstallment = ["true", "1", true].includes(isInstallment);
-            const parsedDuration = duration != null ? parseInt(duration, 10) : null;
-            const parsedIsFractionalInstallment = parsedFractional ? ["true", "1", true].includes(isFractionalInstallment) : false;
-            const parsedIsFractionalDuration = parsedIsFractionalInstallment ? parseInt(isFractionalDuration, 10) : null;
-            const parsedMonthlyExpense = monthly_expense ? parseFloat(monthly_expense) : null;
-
-            if (!parsedFractional && isInstallment === undefined) {
-                return res.status(400).json({ message: "isInstallment is required for non-fractional farms" });
-            }
-
-            if (!parsedFractional && parsedIsInstallment && (parsedDuration == null || isNaN(parsedDuration) || parsedDuration <= 0)) {
-                return res.status(400).json({ message: "Duration must be a positive integer when isInstallment is true" });
-            }
-
-            if (parsedFractional && parsedIsFractionalInstallment) {
-                if (!parsedIsFractionalDuration || isNaN(parsedIsFractionalDuration) || parsedIsFractionalDuration <= 0) {
-                    return res.status(400).json({ message: "isFractionalDuration must be a positive integer when isFractionalInstallment is true" });
-                }
-            }
 
             const newFarmData = {
                 name,
@@ -157,16 +135,8 @@ exports.createFarm = async (req, res) => {
                 image_url: image_url || null,
                 soil_type: soil_type || "",
                 irrigation_method: irrigation_method || "",
-                physical_delivery_offered: ["true", "1", true].includes(physical_delivery_offered),
                 delivery_regions: splitToArray(delivery_regions),
                 farm_valuation: farm_valuation ? parseFloat(farm_valuation) : null,
-                is_fractional: parsedFractional,
-                isInstallment: parsedFractional ? false : parsedIsInstallment,
-                isFractionalInstallment: parsedIsFractionalInstallment,
-                isFractionalDuration: parsedFractional && parsedIsFractionalInstallment ? parsedIsFractionalDuration : null,
-                percentage: percentage || "",
-                duration: parsedFractional ? null : parsedDuration,
-                monthly_expense: parsedMonthlyExpense,
                 is_sold_out: false,
             };
 
