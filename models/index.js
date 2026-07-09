@@ -1,4 +1,4 @@
-// models/index.js (UPDATED - includes FarmUnit)
+// models/index.js
 'use strict';
 
 const pg = require('pg');
@@ -11,6 +11,7 @@ const config = require('../config/config.json')[env];
 const db = {};
 
 let sequelize;
+
 if (process.env.DATABASE_URL) {
   console.log("Using DATABASE_URL for connection...");
 
@@ -18,14 +19,8 @@ if (process.env.DATABASE_URL) {
     dialect: 'postgres',
     dialectModule: pg,
     protocol: 'postgres',
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false,
-        sslmode: 'require',
-      },
-    },
-    logging: console.log,
+    dialectOptions: {},
+    logging: false,
     pool: {
       max: 5,
       min: 0,
@@ -44,12 +39,13 @@ if (process.env.DATABASE_URL) {
 
 sequelize.authenticate()
   .then(() => {
-    console.log("Database connection successful");
+    console.log("✅ Database connection successful");
   })
   .catch((error) => {
-    console.error("Error connecting to the database:", error);
+    console.error("❌ Error connecting to the database:", error.message);
   });
 
+// Import models
 fs.readdirSync(__dirname)
   .filter(file => {
     return (
