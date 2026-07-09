@@ -22,7 +22,7 @@
     }
   },
   "env": {
-    "DATABASE_URL": "postgresql://ajeku_agro_user:l4sOUszL7UTpe70gZHzMraPJ5HL1s2pk@dpg-d8jt0csvikkc73889b00-a.oregon-postgres.render.com/ajeku_agro",
+    "DATABASE_URL": "postgresql://ajeku_agro_4hny_user:X0cR0b48wwamSFj1en9YHElKSlaieLjA@dpg-d97nqnetrd3s739d9dog-a.ohio-postgres.render.com/ajeku_agro_4hny",
     "NODE_ENV": "production",
     "EMAIL_USER": "teddyogbonnaya@gmail.com",
     "EMAIL_PASS": "&Dreamcodev1",
