@@ -1,4 +1,4 @@
-// models/index.js (UPDATED - includes FarmUnit)
+// models/index.js
 'use strict';
 
 const pg = require('pg');
@@ -14,7 +14,10 @@ let sequelize;
 if (process.env.DATABASE_URL) {
   console.log("Using DATABASE_URL for connection...");
 
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
+  // Parse the DATABASE_URL to handle SSL properly
+  const databaseUrl = process.env.DATABASE_URL;
+
+  sequelize = new Sequelize(databaseUrl, {
     dialect: 'postgres',
     dialectModule: pg,
     protocol: 'postgres',
@@ -22,18 +25,21 @@ if (process.env.DATABASE_URL) {
       ssl: {
         require: true,
         rejectUnauthorized: false,
-        sslmode: 'require',
       },
+      keepAlive: true,
+      // Force SSL for Render Ohio
+      sslmode: 'require',
     },
-    logging: console.log,
+    logging: false,
     pool: {
-      max: 5,
+      max: 3,
       min: 0,
-      acquire: 30000,
+      acquire: 60000,
       idle: 10000,
     },
     retry: {
-      max: 3,
+      max: 5,
+      timeout: 60000,
     },
   });
 
@@ -42,6 +48,7 @@ if (process.env.DATABASE_URL) {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
+// Test the connection
 sequelize.authenticate()
   .then(() => {
     console.log("Database connection successful");
@@ -50,6 +57,7 @@ sequelize.authenticate()
     console.error("Error connecting to the database:", error);
   });
 
+// Import your models
 fs.readdirSync(__dirname)
   .filter(file => {
     return (
@@ -63,6 +71,7 @@ fs.readdirSync(__dirname)
     db[model.name] = model;
   });
 
+// Set up associations
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
