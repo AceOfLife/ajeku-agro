@@ -1,11 +1,4 @@
 // server.js (UPDATED with body parser limits)
-
-console.log('=== SERVER STARTUP ===');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('PORT:', process.env.PORT);
-console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-
-
 const express = require('express');
 const http = require('http');
 const bodyParser = require('body-parser');
