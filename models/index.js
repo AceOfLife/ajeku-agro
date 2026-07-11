@@ -10,38 +10,61 @@ const env = process.env.NODE_ENV || 'development';
 const config = require('../config/config.json')[env];
 const db = {};
 
-// ===== DEBUG: Log the environment =====
-console.log('=== ENVIRONMENT ===');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
-console.log('DATABASE_URL length:', process.env.DATABASE_URL?.length || 0);
-console.log('DATABASE_URL preview:', process.env.DATABASE_URL?.substring(0, 30) + '...');
-
 let sequelize;
 
 if (process.env.DATABASE_URL) {
   console.log("Using DATABASE_URL for connection...");
 
-  try {
-    sequelize = new Sequelize(process.env.DATABASE_URL, {
-      dialect: 'postgres',
-      dialectModule: pg,
-      protocol: 'postgres',
-      dialectOptions: {},
-      logging: false,
-      pool: {
-        max: 3,
-        min: 0,
-        acquire: 30000,
-        idle: 10000,
-      },
-      retry: {
-        max: 3,
-      },
-    });
-  } catch (error) {
-    console.error('❌ Error creating Sequelize instance:', error.message);
-    throw error;
+  // Try different SSL configurations
+  const sslConfigs = [
+    // Option 1: No SSL (for internal connections)
+    undefined,
+    // Option 2: SSL with rejectUnauthorized: false
+    { require: true, rejectUnauthorized: false },
+    // Option 3: SSL with no-verify
+    { require: true, rejectUnauthorized: false, sslmode: 'no-verify' },
+  ];
+
+  // Try the first one that works
+  let lastError = null;
+  let sslConfig = null;
+
+  for (const config of sslConfigs) {
+    try {
+      const testSequelize = new Sequelize(process.env.DATABASE_URL, {
+        dialect: 'postgres',
+        dialectModule: pg,
+        protocol: 'postgres',
+        dialectOptions: config ? { ssl: config } : {},
+        logging: false,
+        pool: {
+          max: 1,
+          min: 0,
+          acquire: 30000,
+          idle: 10000,
+        },
+        retry: {
+          max: 1,
+        },
+      });
+
+      // Test the connection
+      await testSequelize.authenticate();
+      console.log(`✅ Connected with SSL config:`, config || 'none');
+      sslConfig = config;
+      sequelize = testSequelize;
+      break;
+    } catch (error) {
+      console.log(`❌ Failed with SSL config:`, config || 'none', error.message);
+      lastError = error;
+      // Close the connection if it was opened
+      try { await testSequelize.close(); } catch (e) {}
+    }
+  }
+
+  if (!sequelize) {
+    console.error('❌ All connection attempts failed:', lastError?.message);
+    throw lastError;
   }
 
 } else {
@@ -61,15 +84,13 @@ if (process.env.DATABASE_URL) {
   });
 }
 
-// ===== DEBUG: Test connection immediately =====
-console.log('=== TESTING CONNECTION ===');
+// Test connection
 sequelize.authenticate()
   .then(() => {
     console.log("✅ Database connection successful");
   })
   .catch((error) => {
     console.error("❌ Error connecting to the database:", error.message);
-    console.error("❌ Full error:", error);
   });
 
 // Import models
