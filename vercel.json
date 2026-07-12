@@ -24,6 +24,7 @@
   "env": {
     "DATABASE_URL": "postgresql://ajeku_agro_user:DYNwf6YYYNuzOb2NBJNWnlax6gm0KNmy@dpg-d998drpo3t8c73f1qbcg-a.frankfurt-postgres.render.com/ajeku_agro_3tib",
     "NODE_ENV": "production",
+    "JWT_SECRET": "your_very_secure_secret_key",
     "EMAIL_USER": "teddyogbonnaya@gmail.com",
     "EMAIL_PASS": "&Dreamcodev1",
     "FRONTEND_URL": "https://ajeku-mu.vercel.app",
