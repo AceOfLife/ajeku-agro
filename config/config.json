@@ -11,7 +11,7 @@
     "username": "ajeku_agro_28ie_user",
     "password": "Lz33s2Yw32NpZ6F7oTWYYDf8DVcWcNas",
     "database": "ajeku_agro_28ie",
-    "host": "dpg-d99mqlbtqb8s73aqm0og-a.oregon-postgres.render.com",
+    "host": "dpg-d99mqlbtqb8s73aqm0og",
     "dialect": "postgres",
     "port": 5432,
     "dialectOptions": {
