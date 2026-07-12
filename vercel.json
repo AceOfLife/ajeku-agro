@@ -20,17 +20,5 @@
       "maxDuration": 10,
       "memory": 1024
     }
-  },
-  "env": {
-    "DATABASE_URL": "postgresql://neondb_owner:npg_jMKsL9gBZ4Vh@ep-crimson-fire-atipoxqf-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
-    "NODE_ENV": "production",
-    "JWT_SECRET": "your_very_secure_secret_key",
-    "EMAIL_USER": "teddyogbonnaya@gmail.com",
-    "EMAIL_PASS": "&Dreamcodev1",
-    "FRONTEND_URL": "https://ajeku-mu.vercel.app",
-    "CLOUDINARY_CLOUD_NAME": "dqqxes1xo",
-    "CLOUDINARY_API_KEY": "942322874736725",
-    "CLOUDINARY_API_SECRET": "7uvqpKsfR2luTaJw3TarDc9lYyU",
-    "PAYSTACK_SECRET_KEY": "sk_test_8d46a0967b5c661345ff1cc0d24aa3f70aa624fb"
   }
 }
