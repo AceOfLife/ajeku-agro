@@ -8,10 +8,10 @@
     "port": 5432
   },
   "production": {
-    "username": "ajeku_agro_28ie_user",
-    "password": "Lz33s2Yw32NpZ6F7oTWYYDf8DVcWcNas",
-    "database": "ajeku_agro_28ie",
-    "host": "dpg-d99mqlbtqb8s73aqm0og",
+    "username": "neondb_owner",
+    "password": "npg_jMKsL9gBZ4Vh",
+    "database": "neondb",
+    "host": "ep-crimson-fire-atipoxqf-pooler.c-9.us-east-1.aws.neon.tech",
     "dialect": "postgres",
     "port": 5432,
     "dialectOptions": {
@@ -19,12 +19,6 @@
         "require": true,
         "rejectUnauthorized": false
       }
-    },
-    "pool": {
-      "max": 3,
-      "min": 0,
-      "acquire": 60000,
-      "idle": 10000
     }
   }
 }

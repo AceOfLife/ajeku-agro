@@ -22,7 +22,7 @@
     }
   },
   "env": {
-    "DATABASE_URL": "postgresql://ajeku_agro_28ie_user:Lz33s2Yw32NpZ6F7oTWYYDf8DVcWcNas@dpg-d99mqlbtqb8s73aqm0og/ajeku_agro_28ie",
+    "DATABASE_URL": "postgresql://neondb_owner:npg_jMKsL9gBZ4Vh@ep-crimson-fire-atipoxqf-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
     "NODE_ENV": "production",
     "JWT_SECRET": "your_very_secure_secret_key",
     "EMAIL_USER": "teddyogbonnaya@gmail.com",

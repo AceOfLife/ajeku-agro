@@ -3,7 +3,7 @@ const { Sequelize } = require('sequelize');
 const pg = require('pg');
 
 // Hardcode the URL directly (no environment variable needed)
-const DATABASE_URL = 'postgresql://ajeku_agro_user:DYNwf6YYYNuzOb2NBJNWnlax6gm0KNmy@dpg-d998drpo3t8c73f1qbcg-a.frankfurt-postgres.render.com/ajeku_agro_3tib';
+const DATABASE_URL = 'postgresql://neondb_owner:npg_jMKsL9gBZ4Vh@ep-crimson-fire-atipoxqf-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
 
 console.log('=== TESTING DATABASE CONNECTION ===');
 console.log('URL (masked):', DATABASE_URL.replace(/:[^:@]+@/, ':****@'));
