@@ -8,10 +8,10 @@
     "port": 5432
   },
   "production": {
-    "username": "ajeku_agro_user",
-    "password": "DYNwf6YYYNuzOb2NBJNWnlax6gm0KNmy",
-    "database": "ajeku_agro_3tib",
-    "host": "dpg-d998drpo3t8c73f1qbcg-a.frankfurt-postgres.render.com",
+    "username": "ajeku_agro_28ie_user",
+    "password": "Lz33s2Yw32NpZ6F7oTWYYDf8DVcWcNas",
+    "database": "ajeku_agro_28ie",
+    "host": "dpg-d99mqlbtqb8s73aqm0og-a.oregon-postgres.render.com",
     "dialect": "postgres",
     "port": 5432,
     "dialectOptions": {
