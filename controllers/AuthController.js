@@ -5,10 +5,6 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 require('dotenv').config();
 
-
-// controllers/AuthController.js - Keep the hardcoded fallback
-const DATABASE_URL = 'postgresql://ajeku_agro_28ie_user:Lz33s2Yw32NpZ6F7oTWYYDf8DVcWcNas@dpg-d99mqlbtqb8s73aqm0og-a.oregon-postgres.render.com/ajeku_agro_28ie';
-
 // Generate refresh token
 const generateRefreshToken = () => {
   return crypto.randomBytes(40).toString('hex');
