@@ -1,76 +1,46 @@
 // models/index.js
 'use strict';
 
+const { Sequelize } = require('sequelize');
 const pg = require('pg');
 const fs = require('fs');
 const path = require('path');
-const Sequelize = require('sequelize');
 const basename = path.basename(__filename);
-const env = process.env.NODE_ENV || 'development';
-const config = require('../config/config.json')[env];
 const db = {};
 
-console.log('=== DATABASE CONNECTION SETUP ===');
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+// ===== USE THE SAME CONFIG THAT WORKED IN TEST-SERVER =====
+const DATABASE_URL = 'postgresql://ajeku_agro_28ie_user:Lz33s2Yw32NpZ6F7oTWYYDf8DVcWcNas@dpg-d99mqlbtqb8s73aqm0og-a.oregon-postgres.render.com/ajeku_agro_28ie';
 
-let sequelize;
+console.log('=== DATABASE CONNECTION ===');
 
-if (process.env.DATABASE_URL) {
-  console.log("Configuring connection for Production/Render...");
+// Create Sequelize instance with the SAME configuration that works
+const sequelize = new Sequelize(DATABASE_URL, {
+  dialect: 'postgres',
+  dialectModule: pg,
+  dialectOptions: {
+    ssl: {
+      rejectUnauthorized: false
+    }
+  },
+  logging: false,
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
+});
 
-  // Mask password for security logging
-  const masked = process.env.DATABASE_URL.replace(/:[^:@]+@/, ':****@');
-  console.log('DATABASE_URL (masked):', masked);
-
-  // Directly initialize with Render's required SSL settings
-  sequelize = new Sequelize(process.env.DATABASE_URL, {
-    dialect: 'postgres',
-    dialectModule: pg,
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false, // Bypasses Render self-signed certificate restriction
-      },
-      keepAlive: true,
-    },
-    logging: console.log, // Keeps tracking queries in Vercel function logs
-    pool: {
-      max: 2,        // Strict low limit to fit into Render Free Tier (Max 5 total across all instances)
-      min: 0,
-      acquire: 30000,
-      idle: 10000,
-    },
-  });
-
-} else {
-  console.log("Using local config for database connection...");
-  sequelize = new Sequelize(config.database, config.username, config.password, {
-    host: config.host,
-    dialect: config.dialect,
-    port: config.port,
-    dialectOptions: config.dialectOptions || {},
-    logging: false,
-    pool: {
-      max: 3,
-      min: 0,
-      acquire: 30000,
-      idle: 10000,
-    },
-  });
-}
-
-// Lazy authentication test - non-blocking for module exports
+console.log('Testing connection...');
 sequelize.authenticate()
   .then(() => {
-    console.log("✅ Database connection initialized successfully");
+    console.log("✅ Database connection successful");
   })
   .catch((error) => {
-    console.error("❌ Database initialization failed:", error.message);
+    console.error("❌ Error connecting to the database:", error.message);
   });
 
 // Import models
-console.log('\n=== LOADING MODELS ===');
 fs.readdirSync(__dirname)
   .filter(file => {
     return (
@@ -80,22 +50,19 @@ fs.readdirSync(__dirname)
     );
   })
   .forEach(file => {
-    console.log(`  Loading: ${file}`);
     const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
     db[model.name] = model;
   });
 
-console.log('\n=== SETTING UP ASSOCIATIONS ===');
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
-    console.log(`  Setting associations for: ${modelName}`);
     db[modelName].associate(db);
   }
 });
 
-console.log('\n=== DATABASE SETUP COMPLETE ===');
-
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
+
+console.log('=== DATABASE SETUP COMPLETE ===');
 
 module.exports = db;
