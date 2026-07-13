@@ -1,117 +1,101 @@
 // models/index.js
 'use strict';
 
+const pg = require('pg');
 const fs = require('fs');
 const path = require('path');
-const { Sequelize, DataTypes } = require('sequelize');
-const pg = require('pg');
-
+const Sequelize = require('sequelize');
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
 const config = require('../config/config.json')[env];
-
 const db = {};
 
-console.log('========================================');
-console.log('Database Initialization');
-console.log('========================================');
-console.log('NODE_ENV:', env);
-console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL);
+// ===== VERBOSE DEBUGGING =====
+console.log('=== DATABASE DEBUG START ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('Environment variables available:');
+console.log('  DATABASE_URL:', process.env.DATABASE_URL ? '✅ EXISTS' : '❌ MISSING');
+console.log('  DB_HOST:', process.env.DB_HOST || '❌ MISSING');
+console.log('  DB_USER:', process.env.DB_USER || '❌ MISSING');
+console.log('  DB_PASSWORD:', process.env.DB_PASSWORD ? '✅ EXISTS' : '❌ MISSING');
+console.log('  DB_NAME:', process.env.DB_NAME || '❌ MISSING');
 
 let sequelize;
 
 if (process.env.DATABASE_URL) {
-  const maskedUrl = process.env.DATABASE_URL.replace(/:\/\/(.*?):(.*?)@/, '://$1:****@');
-  console.log('Using DATABASE_URL:', maskedUrl);
+  console.log("Using DATABASE_URL for connection...");
+  console.log("DATABASE_URL preview:", process.env.DATABASE_URL.substring(0, 50) + '...');
+
+  // Parse URL to check components
+  try {
+    const url = new URL(process.env.DATABASE_URL);
+    console.log('Parsed URL:');
+    console.log('  protocol:', url.protocol);
+    console.log('  hostname:', url.hostname);
+    console.log('  port:', url.port || '5432');
+    console.log('  pathname:', url.pathname);
+  } catch (e) {
+    console.error('Failed to parse DATABASE_URL:', e.message);
+  }
 
   sequelize = new Sequelize(process.env.DATABASE_URL, {
     dialect: 'postgres',
     dialectModule: pg,
-
-    protocol: 'postgres',
-
-    logging: false,
-
     dialectOptions: {
       ssl: {
         require: true,
         rejectUnauthorized: false,
       },
     },
-
+    logging: console.log,
     pool: {
-      max: 3,
+      max: 1,
       min: 0,
-      acquire: 60000,
+      acquire: 30000,
       idle: 10000,
     },
+  });
 
-    retry: {
-      max: 3,
+} else {
+  console.log("Using config.json for database connection...");
+  sequelize = new Sequelize(config.database, config.username, config.password, {
+    host: config.host,
+    dialect: config.dialect,
+    port: config.port,
+    dialectOptions: config.dialectOptions || {},
+    logging: console.log,
+    pool: {
+      max: 1,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
     },
   });
-} else {
-  console.log('Using config.json database configuration');
-
-  sequelize = new Sequelize(
-    config.database,
-    config.username,
-    config.password,
-    {
-      host: config.host,
-      port: config.port,
-      dialect: config.dialect,
-      logging: false,
-
-      dialectOptions: config.dialectOptions || {},
-
-      pool: config.pool || {
-        max: 3,
-        min: 0,
-        acquire: 60000,
-        idle: 10000,
-      },
-    }
-  );
 }
 
-// Test database connection (non-blocking)
-(async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('✅ PostgreSQL connected successfully');
-  } catch (err) {
-    console.error('❌ Database connection failed');
-    console.error('Error Name:', err.name);
-    console.error('Message:', err.message);
+console.log('=== AUTHENTICATING ===');
+sequelize.authenticate()
+  .then(() => {
+    console.log("✅ Database connection successful");
+  })
+  .catch((error) => {
+    console.error("❌ Error connecting to the database:", error.message);
+    console.error("❌ Full error:", error);
+  });
 
-    if (err.parent) {
-      console.error('Parent Error:', err.parent.message);
-      console.error('Parent Code:', err.parent.code);
-    }
-
-    if (err.original) {
-      console.error('Original Error:', err.original.message);
-      console.error('Original Code:', err.original.code);
-    }
-  }
-})();
-
-// Load models
 fs.readdirSync(__dirname)
   .filter(file => {
     return (
-      file.indexOf('.') !== 0 &&
-      file !== basename &&
+      file.indexOf('.') !== 0 && 
+      file !== basename && 
       file.slice(-3) === '.js'
     );
   })
   .forEach(file => {
-    const model = require(path.join(__dirname, file))(sequelize, DataTypes);
+    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
     db[model.name] = model;
   });
 
-// Run associations
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
@@ -120,5 +104,7 @@ Object.keys(db).forEach(modelName => {
 
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
+
+console.log('=== DATABASE SETUP COMPLETE ===');
 
 module.exports = db;
