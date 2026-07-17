@@ -1,4 +1,4 @@
-// server.js (UPDATED with body parser limits and test endpoints)
+// server.js
 const express = require('express');
 const http = require('http');
 const bodyParser = require('body-parser');
@@ -6,6 +6,8 @@ const cors = require('cors');
 const path = require('path');
 const favicon = require('serve-favicon');
 const socketio = require('socket.io');
+const cookieParser = require('cookie-parser');
+
 const adminRoutes = require('./routes/admin');
 const investorRoutes = require('./routes/investorRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -20,7 +22,6 @@ const farmManagerRoutes = require('./routes/farmManagerRoutes');
 const harvestRoutes = require('./routes/harvestRoutes');
 const farmUnitRoutes = require('./routes/farmUnitRoutes');
 const marketplaceRoutes = require('./routes/marketplaceRoutes');
-const cookieParser = require('cookie-parser');
 
 const app = express();
 const server = http.createServer(app);
@@ -47,29 +48,22 @@ io.on('connection', (socket) => {
 });
 
 app.use(cors());
-
-// ===== INCREASE BODY SIZE LIMITS =====
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
-// ===== DATABASE CONNECTION TEST =====
-console.log('=== DATABASE CONNECTION ===');
+// Database connection
 sequelize.authenticate()
-  .then(() => {
-    console.log('✅ Database connection established');
-  })
-  .catch(err => {
-    console.error('❌ Database connection error:', err.message);
-  });
+  .then(() => console.log('✅ Database connection established'))
+  .catch(err => console.error('❌ Database connection error:', err.message));
 
 app.use(favicon(path.join(__dirname, 'favicon.png')));
 app.use(express.static(path.join(__dirname)));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ===== TEST ROUTES =====
+// Health check
 app.get('/', (req, res) => {
   res.json({ 
     status: 'ok', 
@@ -78,27 +72,9 @@ app.get('/', (req, res) => {
   });
 });
 
-app.get('/api/test-db', async (req, res) => {
-  try {
-    await sequelize.authenticate();
-    res.json({
-      success: true,
-      message: 'Database connected',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Database connection failed',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(__dirname, 'favicon.png')));
 
-// ===== ROUTES =====
+// Routes
 app.use("/api", paymentRoutes);
 app.use('/transactions', transactionRoutes);
 app.use('/api/bank-of-heaven', bankOfHeavenRoutes);
@@ -114,7 +90,7 @@ app.use('/admin', adminRoutes);
 app.use('/api/documents', require('./routes/documentRoutes'));
 app.use('/api/marketplace', marketplaceRoutes);
 
-// ===== ERROR HANDLING =====
+// Error handling
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
   res.status(500).json({ 
@@ -126,8 +102,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`✅ Server running with Socket.io on port ${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/`);
-  console.log(`📍 Database test: http://localhost:${PORT}/api/test-db`);
 });
 
 module.exports = app;
