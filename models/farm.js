@@ -65,23 +65,9 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    physical_delivery_offered: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
-    },
     delivery_regions: {
       type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
-    },
-    is_fractional: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true,
-      allowNull: false,
-    },
-    isInstallment: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false,
     },
     isFractionalInstallment: {
       type: DataTypes.BOOLEAN,
