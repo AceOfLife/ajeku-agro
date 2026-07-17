@@ -69,15 +69,6 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
-    isFractionalInstallment: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
-      allowNull: false,
-    },
-    isFractionalDuration: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
     duration: {
       type: DataTypes.INTEGER,
       allowNull: true,
