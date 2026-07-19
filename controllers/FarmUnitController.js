@@ -10,7 +10,11 @@ exports.createUnits = async (req, res) => {
     try {
         const { farmId } = req.params;
         
-        // Parse units from form-data
+        console.log('=== CREATE UNITS ===');
+        console.log('req.body:', req.body);
+        console.log('req.files:', req.files ? 'Files present' : 'No files');
+        
+        // Get units from req.body
         let units = req.body.units;
         
         // If units is a string, parse it as JSON
@@ -24,10 +28,27 @@ exports.createUnits = async (req, res) => {
             }
         }
 
-        // If units is not an array, try to get it from the request
-        if (!units || !Array.isArray(units) || units.length === 0) {
+        // If units is not an array, check if it's an object and wrap it
+        if (!Array.isArray(units)) {
+            if (units && typeof units === 'object') {
+                // If it's a single unit object, wrap it in an array
+                if (units.unit_number) {
+                    units = [units];
+                } else {
+                    return res.status(400).json({ 
+                        message: 'Units must be an array or a valid unit object' 
+                    });
+                }
+            } else {
+                return res.status(400).json({ 
+                    message: 'Units array is required' 
+                });
+            }
+        }
+
+        if (units.length === 0) {
             return res.status(400).json({ 
-                message: 'Units array is required' 
+                message: 'At least one unit is required' 
             });
         }
 
@@ -36,24 +57,35 @@ exports.createUnits = async (req, res) => {
             return res.status(404).json({ message: 'Farm not found' });
         }
 
-        // Upload images to Cloudinary if any
+        // Handle image uploads - EXACTLY like Farm Creation
         let imageUrls = [];
-        if (req.files && req.files.length > 0) {
-            imageUrls = await uploadImagesToCloudinary(req.files);
+        if (req.files && req.files.images && req.files.images.length > 0) {
+            imageUrls = await uploadImagesToCloudinary(req.files.images);
             if (!Array.isArray(imageUrls)) {
                 imageUrls = [imageUrls];
             }
         }
 
+        console.log('Uploaded image URLs:', imageUrls);
+
         const createdUnits = [];
         let imageIndex = 0;
 
         for (const unitData of units) {
+            // Assign image URL - if there are uploaded images, use them
             let unitImageUrl = unitData.image_url || null;
             
-            if (unitData.image && imageUrls.length > 0) {
-                unitImageUrl = imageUrls[imageIndex] || null;
-                imageIndex++;
+            // If we have uploaded images and this unit doesn't have a specific image_url
+            if (imageUrls.length > 0 && !unitData.image_url) {
+                // If the unit has an 'image' field indicating it should get an image
+                if (unitData.image !== undefined) {
+                    unitImageUrl = imageUrls[imageIndex] || null;
+                    imageIndex++;
+                } else {
+                    // Distribute images evenly if no specific assignment
+                    unitImageUrl = imageUrls[imageIndex % imageUrls.length] || null;
+                    imageIndex++;
+                }
             }
 
             const unit = await FarmUnit.create({

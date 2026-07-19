@@ -4,14 +4,17 @@ const cloudinary = require('./cloudinaryConfig');
 
 const storage = multer.memoryStorage();
 
-// Configure multer with file size limits
+// Use .fields() to handle both 'units' (text) and 'images' (files)
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit per file
-        files: 15 // Max 15 files
+        fileSize: 10 * 1024 * 1024, // 10MB per file
+        files: 15
     }
-}).array('images', 15);
+}).fields([
+    { name: 'units', maxCount: 1 },
+    { name: 'images', maxCount: 15 }
+]);
 
 async function uploadImagesToCloudinary(files) {
     if (!files || files.length === 0) {
