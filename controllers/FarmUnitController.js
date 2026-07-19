@@ -18,9 +18,10 @@ exports.createUnits = async (req, res) => {
         console.log('req.body.units:', req.body.units);
         console.log('req.files:', req.files ? Object.keys(req.files) : 'No files');
 
-        if (req.files) {
-            for (const key of Object.keys(req.files)) {
-                console.log(`Field '${key}': ${req.files[key].length} files`);
+          // Log each file's field name
+        if (req.files && req.files.length > 0) {
+            for (const file of req.files) {
+                console.log(`File field: "${file.fieldname}", name: "${file.originalname}"`);
             }
         }
         
