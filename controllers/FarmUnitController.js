@@ -4,60 +4,124 @@ const { Op } = require('sequelize');
 
 // controllers/FarmUnitController.js - createUnits (UPDATED)
 
+// ===== CREATE UNITS WITH IMAGE UPLOADS (FormData Support) =====
 exports.createUnits = async (req, res) => {
-  try {
-    const { farmId } = req.params;
-    const { units } = req.body;
+    upload(req, res, async (err) => {
+        if (err) {
+            console.error("Multer error:", err);
+            
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({ 
+                    message: 'File too large. Maximum file size is 10MB per image.' 
+                });
+            }
+            
+            if (err.code === 'LIMIT_FILE_COUNT') {
+                return res.status(400).json({ 
+                    message: 'Too many files. Maximum is 15 images.' 
+                });
+            }
+            
+            return res.status(400).json({ 
+                message: "Error uploading images", 
+                error: err.message 
+            });
+        }
 
-    const farm = await Farm.findByPk(farmId);
-    if (!farm) {
-      return res.status(404).json({ message: 'Farm not found' });
-    }
+        try {
+            const { farmId } = req.params;
+            
+            // Parse units from form-data
+            let units = req.body.units;
+            
+            // If units is a string, parse it as JSON
+            if (typeof units === 'string') {
+                try {
+                    units = JSON.parse(units);
+                } catch (e) {
+                    return res.status(400).json({ 
+                        message: 'Invalid units format. Expected JSON array.' 
+                    });
+                }
+            }
 
-    if (!units || !Array.isArray(units) || units.length === 0) {
-      return res.status(400).json({ message: 'Units array is required' });
-    }
+            // If units is not an array, try to get it from the request
+            if (!units || !Array.isArray(units) || units.length === 0) {
+                return res.status(400).json({ 
+                    message: 'Units array is required' 
+                });
+            }
 
-    const createdUnits = [];
-    for (const unitData of units) {
-      const unit = await FarmUnit.create({
-        farm_id: farmId,
-        unit_number: unitData.unit_number,
-        size_of_unit: unitData.size_of_unit,
-        price: unitData.price,
-        crop_type: unitData.crop_type,
-        crop_description: unitData.crop_description || null,
-        planting_date: unitData.planting_date || null,
-        expected_harvest_date: unitData.expected_harvest_date || null,
-        harvest_cycle_months: unitData.harvest_cycle_months || null,
-        expected_yield_per_unit_kg: unitData.expected_yield_per_unit_kg || null,
-        expected_value_per_kg: unitData.expected_value_per_kg || null,
-        soil_type: unitData.soil_type || null,
-        image_url: unitData.image_url || null,
-        gps_coordinates: unitData.gps_coordinates || null,
-        irrigation_method: unitData.irrigation_method || null,
-        physical_delivery_offered: unitData.physical_delivery_offered || false,
-        isInstallment: unitData.isInstallment || false,
-        is_fractional: unitData.is_fractional || true,
-        isFractionalInstallment: unitData.isFractionalInstallment || false,
-        isFractionalDuration: unitData.isFractionalDuration || null,
-        duration: unitData.duration || null,
-        percentage: unitData.percentage || null,
-        monthly_expense: unitData.monthly_expense || null,
-        status: 'available'
-      });
-      createdUnits.push(unit);
-    }
+            const farm = await Farm.findByPk(farmId);
+            if (!farm) {
+                return res.status(404).json({ message: 'Farm not found' });
+            }
 
-    res.status(201).json({
-      success: true,
-      message: `${createdUnits.length} units created successfully`,
-      units: createdUnits
+            // Upload images to Cloudinary if any
+            let imageUrls = [];
+            if (req.files && req.files.length > 0) {
+                imageUrls = await uploadImagesToCloudinary(req.files);
+                if (!Array.isArray(imageUrls)) {
+                    imageUrls = [imageUrls];
+                }
+            }
+
+            const createdUnits = [];
+            let imageIndex = 0;
+
+            for (const unitData of units) {
+                // Assign image URL if available
+                let unitImageUrl = unitData.image_url || null;
+                
+                // If the unit has an image field and we have uploaded images
+                if (unitData.image && imageUrls.length > 0) {
+                    unitImageUrl = imageUrls[imageIndex] || null;
+                    imageIndex++;
+                }
+
+                const unit = await FarmUnit.create({
+                    farm_id: farmId,
+                    unit_number: unitData.unit_number,
+                    size_of_unit: unitData.size_of_unit,
+                    price: unitData.price,
+                    crop_type: unitData.crop_type,
+                    crop_description: unitData.crop_description || null,
+                    planting_date: unitData.planting_date || null,
+                    expected_harvest_date: unitData.expected_harvest_date || null,
+                    harvest_cycle_months: unitData.harvest_cycle_months || null,
+                    expected_yield_per_unit_kg: unitData.expected_yield_per_unit_kg || null,
+                    expected_value_per_kg: unitData.expected_value_per_kg || null,
+                    soil_type: unitData.soil_type || null,
+                    image_url: unitImageUrl,
+                    gps_coordinates: unitData.gps_coordinates || null,
+                    irrigation_method: unitData.irrigation_method || null,
+                    physical_delivery_offered: unitData.physical_delivery_offered || false,
+                    isInstallment: unitData.isInstallment || false,
+                    is_fractional: unitData.is_fractional || true,
+                    isFractionalInstallment: unitData.isFractionalInstallment || false,
+                    isFractionalDuration: unitData.isFractionalDuration || null,
+                    duration: unitData.duration || null,
+                    percentage: unitData.percentage || null,
+                    monthly_expense: unitData.monthly_expense || null,
+                    status: 'available'
+                });
+                createdUnits.push(unit);
+            }
+
+            res.status(201).json({
+                success: true,
+                message: `${createdUnits.length} units created successfully`,
+                units: createdUnits,
+                images: imageUrls
+            });
+        } catch (error) {
+            console.error('Error creating units:', error);
+            res.status(500).json({ 
+                message: 'Error creating units', 
+                error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+            });
+        }
     });
-  } catch (error) {
-    console.error('Error creating units:', error);
-    res.status(500).json({ message: 'Error creating units', error });
-  }
 };
 
 exports.getUnits = async (req, res) => {
