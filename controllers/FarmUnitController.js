@@ -13,6 +13,16 @@ exports.createUnits = async (req, res) => {
         console.log('=== CREATE UNITS ===');
         console.log('req.body:', req.body);
         console.log('req.files:', req.files ? 'Files present' : 'No files');
+         console.log('=== CREATE UNITS DEBUG ===');
+        console.log('req.body keys:', Object.keys(req.body));
+        console.log('req.body.units:', req.body.units);
+        console.log('req.files:', req.files ? Object.keys(req.files) : 'No files');
+
+        if (req.files) {
+            for (const key of Object.keys(req.files)) {
+                console.log(`Field '${key}': ${req.files[key].length} files`);
+            }
+        }
         
         // Get units from req.body
         let units = req.body.units;
