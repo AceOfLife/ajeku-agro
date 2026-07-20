@@ -159,6 +159,7 @@ exports.verifyPayment = async (req, res) => {
 
       const ownership = await FarmUnitOwnership.create({
         farm_unit_id: unitId,
+        farm_id: farm_id,
         user_id: user_id,
         units_purchased: 1,
         size_purchased: unit.size_of_unit,
