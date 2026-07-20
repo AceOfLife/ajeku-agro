@@ -162,7 +162,8 @@ exports.verifyPayment = async (req, res) => {
         farm_id: farm_id,
         user_id: user_id,
         units_purchased: 1,
-        size_purchased: unit.size_of_unit,
+        // size_purchased: unit.size_of_unit,
+        size_purchased: parseFloat(unit.size_of_unit) || 0,
         purchase_date: new Date()
       }, { transaction: t });
 
