@@ -1,7 +1,9 @@
+// paymentController.js
 const axios = require('axios');
 const {
   Transaction,
   Farm,
+  FarmUnit,
   User,
   FarmUnitOwnership,
   FarmInstallmentOwnership,
@@ -12,9 +14,9 @@ const {
   sequelize,
   FullFarmOwnership,
   HarvestCycle,
-  InvestorProducePreference
+  InvestorProducePreference,
+  Investor
 } = require('../models');
-
 
 exports.initializePayment = async (req, res) => {
   try {
@@ -35,7 +37,6 @@ exports.initializePayment = async (req, res) => {
     let selectedUnits = [];
     let totalAmount = 0;
 
-    // If unit_ids are provided, calculate total for specific units
     if (unit_ids && unit_ids.length > 0) {
       selectedUnits = await FarmUnit.findAll({
         where: {
@@ -53,7 +54,6 @@ exports.initializePayment = async (req, res) => {
 
       totalAmount = selectedUnits.reduce((sum, unit) => sum + parseFloat(unit.price), 0);
     } else {
-      // Fallback to units count (for backward compatibility)
       const availableUnits = farm.units.filter(u => u.status === 'available');
       if (units > availableUnits.length) {
         return res.status(400).json({ message: 'Not enough units available' });
@@ -63,7 +63,6 @@ exports.initializePayment = async (req, res) => {
       totalAmount = selectedUnits.reduce((sum, unit) => sum + parseFloat(unit.price), 0);
     }
 
-    // Initialize payment with Paystack
     const amountInKobo = Math.round(totalAmount * 100);
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
@@ -99,7 +98,6 @@ exports.initializePayment = async (req, res) => {
   }
 };
 
-
 exports.verifyPayment = async (req, res) => {
   const t = await sequelize.transaction();
   
@@ -110,7 +108,6 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    // Check for existing transaction
     const existingTransaction = await Transaction.findOne({ 
       where: { reference },
       transaction: t
@@ -124,7 +121,6 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Verify with Paystack
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -143,7 +139,6 @@ exports.verifyPayment = async (req, res) => {
 
     const { user_id, farm_id, unit_ids, payment_type } = paymentData.metadata || {};
 
-    // Create transaction record
     const transaction = await Transaction.create({
       user_id,
       farm_id,
@@ -154,7 +149,6 @@ exports.verifyPayment = async (req, res) => {
       payment_type: payment_type || 'farm_unit'
     }, { transaction: t });
 
-    // Create ownership for each unit
     const ownerships = [];
     for (const unitId of unit_ids) {
       const unit = await FarmUnit.findByPk(unitId, { transaction: t });
@@ -181,12 +175,11 @@ exports.verifyPayment = async (req, res) => {
 
     await t.commit();
 
-    // Send notifications
     const io = req.app.get('socketio');
     const notification = await Notification.create({
       user_id: user_id,
       title: 'Unit Purchase Successful',
-      message: `You have successfully purchased ${ownerships.length} unit(s) on ${farm.name}`,
+      message: `You have successfully purchased ${ownerships.length} unit(s)`,
       type: 'payment',
       related_entity_id: farm_id
     });
