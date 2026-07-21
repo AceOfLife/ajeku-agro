@@ -6,29 +6,18 @@ const { Op } = require('sequelize');
 
 // controllers/FarmUnitController.js - createUnits (Updated)
 
+// controllers/FarmUnitController.js - createUnits (Updated)
+
 exports.createUnits = async (req, res) => {
     try {
         const { farmId } = req.params;
         
         console.log('=== CREATE UNITS ===');
-        console.log('req.body:', req.body);
-        console.log('req.files:', req.files ? 'Files present' : 'No files');
-         console.log('=== CREATE UNITS DEBUG ===');
-        console.log('req.body keys:', Object.keys(req.body));
         console.log('req.body.units:', req.body.units);
-        console.log('req.files:', req.files ? Object.keys(req.files) : 'No files');
-
-          // Log each file's field name
-        if (req.files && req.files.length > 0) {
-            for (const file of req.files) {
-                console.log(`File field: "${file.fieldname}", name: "${file.originalname}"`);
-            }
-        }
         
-        // Get units from req.body
+        // Parse units from req.body
         let units = req.body.units;
         
-        // If units is a string, parse it as JSON
         if (typeof units === 'string') {
             try {
                 units = JSON.parse(units);
@@ -39,27 +28,9 @@ exports.createUnits = async (req, res) => {
             }
         }
 
-        // If units is not an array, check if it's an object and wrap it
-        if (!Array.isArray(units)) {
-            if (units && typeof units === 'object') {
-                // If it's a single unit object, wrap it in an array
-                if (units.unit_number) {
-                    units = [units];
-                } else {
-                    return res.status(400).json({ 
-                        message: 'Units must be an array or a valid unit object' 
-                    });
-                }
-            } else {
-                return res.status(400).json({ 
-                    message: 'Units array is required' 
-                });
-            }
-        }
-
-        if (units.length === 0) {
+        if (!units || !Array.isArray(units) || units.length === 0) {
             return res.status(400).json({ 
-                message: 'At least one unit is required' 
+                message: 'Units array is required' 
             });
         }
 
@@ -68,10 +39,10 @@ exports.createUnits = async (req, res) => {
             return res.status(404).json({ message: 'Farm not found' });
         }
 
-        // Handle image uploads - EXACTLY like Farm Creation
+        // Upload images to Cloudinary
         let imageUrls = [];
-        if (req.files && req.files.images && req.files.images.length > 0) {
-            imageUrls = await uploadImagesToCloudinary(req.files.images);
+        if (req.files && req.files.length > 0) {
+            imageUrls = await uploadImagesToCloudinary(req.files);
             if (!Array.isArray(imageUrls)) {
                 imageUrls = [imageUrls];
             }
@@ -80,22 +51,21 @@ exports.createUnits = async (req, res) => {
         console.log('Uploaded image URLs:', imageUrls);
 
         const createdUnits = [];
-        let imageIndex = 0;
 
-        for (const unitData of units) {
-            // Assign image URL - if there are uploaded images, use them
+        for (let i = 0; i < units.length; i++) {
+            const unitData = units[i];
+            
+            // Assign image URL if available
             let unitImageUrl = unitData.image_url || null;
             
-            // If we have uploaded images and this unit doesn't have a specific image_url
-            if (imageUrls.length > 0 && !unitData.image_url) {
-                // If the unit has an 'image' field indicating it should get an image
-                if (unitData.image !== undefined) {
-                    unitImageUrl = imageUrls[imageIndex] || null;
-                    imageIndex++;
+            // If we have uploaded images, assign them to units in order
+            if (imageUrls.length > 0) {
+                // If there are multiple units, assign images sequentially
+                // If more units than images, assign null to remaining
+                if (i < imageUrls.length) {
+                    unitImageUrl = imageUrls[i];
                 } else {
-                    // Distribute images evenly if no specific assignment
-                    unitImageUrl = imageUrls[imageIndex % imageUrls.length] || null;
-                    imageIndex++;
+                    unitImageUrl = null;  // No more images left
                 }
             }
 
@@ -112,7 +82,7 @@ exports.createUnits = async (req, res) => {
                 expected_yield_per_unit_kg: unitData.expected_yield_per_unit_kg || null,
                 expected_value_per_kg: unitData.expected_value_per_kg || null,
                 soil_type: unitData.soil_type || null,
-                image_url: unitImageUrl,
+                image_url: unitImageUrl,  // ← Now properly assigned
                 gps_coordinates: unitData.gps_coordinates || null,
                 irrigation_method: unitData.irrigation_method || null,
                 physical_delivery_offered: unitData.physical_delivery_offered || false,
