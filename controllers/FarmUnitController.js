@@ -1,12 +1,9 @@
 // controllers/FarmUnitController.js
 const { FarmUnit, Farm, FarmUnitOwnership, User } = require('../models');
+const { uploadImagesToCloudinary } = require('../config/multerConfig');
 const { Op } = require('sequelize');
 
 // controllers/FarmUnitController.js - createUnits (UPDATED)
-
-// controllers/FarmUnitController.js - createUnits (Updated)
-
-// controllers/FarmUnitController.js - createUnits (Updated)
 
 exports.createUnits = async (req, res) => {
     try {
