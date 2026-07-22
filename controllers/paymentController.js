@@ -20,50 +20,48 @@ const {
 
 exports.initializePayment = async (req, res) => {
   try {
-    const { user_id, farm_id, unit_ids, payment_type, units = 1 } = req.body;
+    const { user_id, farm_id, unit_id, payment_type } = req.body;
+
+    // Validate required fields
+    if (!user_id) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+    if (!farm_id) {
+      return res.status(400).json({ message: 'Farm ID is required' });
+    }
+    if (!unit_id) {
+      return res.status(400).json({ message: 'Unit ID is required' });
+    }
 
     const user = await User.findByPk(user_id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const farm = await Farm.findByPk(farm_id, {
-      include: [{ model: FarmUnit, as: 'units' }]
-    });
+    const farm = await Farm.findByPk(farm_id);
     if (!farm) {
       return res.status(404).json({ message: 'Farm not found' });
     }
 
-    let selectedUnits = [];
-    let totalAmount = 0;
+    // Get the specific unit
+    const unit = await FarmUnit.findOne({
+      where: {
+        id: unit_id,
+        farm_id: farm_id,
+        status: 'available'
+      }
+    });
 
-    if (unit_ids && unit_ids.length > 0) {
-      selectedUnits = await FarmUnit.findAll({
-        where: {
-          id: unit_ids,
-          farm_id: farm_id,
-          status: 'available'
-        }
+    if (!unit) {
+      return res.status(404).json({ 
+        message: 'Unit not found or not available for purchase' 
       });
-
-      if (selectedUnits.length !== unit_ids.length) {
-        return res.status(400).json({ 
-          message: 'One or more units are not available for purchase' 
-        });
-      }
-
-      totalAmount = selectedUnits.reduce((sum, unit) => sum + parseFloat(unit.price), 0);
-    } else {
-      const availableUnits = farm.units.filter(u => u.status === 'available');
-      if (units > availableUnits.length) {
-        return res.status(400).json({ message: 'Not enough units available' });
-      }
-      
-      selectedUnits = availableUnits.slice(0, units);
-      totalAmount = selectedUnits.reduce((sum, unit) => sum + parseFloat(unit.price), 0);
     }
 
+    // Calculate amount (single unit)
+    const totalAmount = parseFloat(unit.price);
     const amountInKobo = Math.round(totalAmount * 100);
+
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
@@ -74,8 +72,8 @@ exports.initializePayment = async (req, res) => {
         metadata: {
           user_id: user.id,
           farm_id: farm.id,
-          unit_ids: selectedUnits.map(u => u.id),
-          payment_type: 'farm_unit',
+          unit_id: unit.id,
+          payment_type: payment_type || 'farm_unit',
           total_amount: totalAmount
         }
       },
@@ -137,8 +135,15 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    const { user_id, farm_id, unit_ids, payment_type } = paymentData.metadata || {};
+    // Extract metadata - now expects single unit_id
+    const { user_id, farm_id, unit_id, payment_type } = paymentData.metadata || {};
 
+    if (!unit_id) {
+      await t.rollback();
+      return res.status(400).json({ message: "No unit ID found in payment metadata" });
+    }
+
+    // Create transaction record
     const transaction = await Transaction.create({
       user_id,
       farm_id,
@@ -149,31 +154,26 @@ exports.verifyPayment = async (req, res) => {
       payment_type: payment_type || 'farm_unit'
     }, { transaction: t });
 
-    const ownerships = [];
-    for (const unitId of unit_ids) {
-      const unit = await FarmUnit.findByPk(unitId, { transaction: t });
-      if (!unit || unit.status !== 'available') {
-        await t.rollback();
-        return res.status(400).json({ message: `Unit ${unitId} is no longer available` });
-      }
-
-      const ownership = await FarmUnitOwnership.create({
-        farm_unit_id: unitId,
-        farm_id: farm_id,
-        user_id: user_id,
-        units_purchased: 1,
-        // size_purchased: unit.size_of_unit,
-        size_purchased: parseFloat(unit.size_of_unit) || 0,
-        purchase_date: new Date()
-      }, { transaction: t });
-
-      await unit.update({
-        status: 'sold',
-        current_owner_id: user_id
-      }, { transaction: t });
-
-      ownerships.push(ownership);
+    // Purchase the single unit
+    const unit = await FarmUnit.findByPk(unit_id, { transaction: t });
+    if (!unit || unit.status !== 'available') {
+      await t.rollback();
+      return res.status(400).json({ message: `Unit ${unit_id} is no longer available` });
     }
+
+    const ownership = await FarmUnitOwnership.create({
+      farm_unit_id: unit_id,
+      farm_id: farm_id,
+      user_id: user_id,
+      units_purchased: 1,
+      size_purchased: parseFloat(unit.size_of_unit) || 0,
+      purchase_date: new Date()
+    }, { transaction: t });
+
+    await unit.update({
+      status: 'sold',
+      current_owner_id: user_id
+    }, { transaction: t });
 
     await t.commit();
 
@@ -181,9 +181,13 @@ exports.verifyPayment = async (req, res) => {
     const notification = await Notification.create({
       user_id: user_id,
       title: 'Unit Purchase Successful',
-      message: `You have successfully purchased ${ownerships.length} unit(s)`,
+      message: `You have successfully purchased unit ${unit.unit_number}`,
       type: 'payment',
-      related_entity_id: farm_id
+      related_entity_id: farm_id,
+      metadata: {
+        unit_id: unit_id,
+        unit_number: unit.unit_number
+      }
     });
 
     if (io) {
@@ -196,7 +200,8 @@ exports.verifyPayment = async (req, res) => {
     res.status(200).json({
       message: 'Payment verified successfully',
       transaction,
-      units_purchased: ownerships
+      unit_purchased: ownership,
+      unit: unit
     });
 
   } catch (error) {
