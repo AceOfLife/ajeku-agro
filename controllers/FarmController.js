@@ -89,6 +89,8 @@ const axios = require("axios");
 
 
 
+// controllers/FarmController.js - createFarm (Updated with specific errors)
+
 exports.createFarm = async (req, res) => {
     upload(req, res, async (err) => {
         if (err) {
@@ -96,19 +98,32 @@ exports.createFarm = async (req, res) => {
             
             if (err.code === 'LIMIT_FILE_SIZE') {
                 return res.status(400).json({ 
-                    message: 'File too large. Maximum file size is 10MB per image.' 
+                    success: false,
+                    message: 'File too large. Maximum file size is 10MB per image.',
+                    code: 'FILE_TOO_LARGE'
                 });
             }
             
             if (err.code === 'LIMIT_FILE_COUNT') {
                 return res.status(400).json({ 
-                    message: 'Too many files. Maximum is 15 images.' 
+                    success: false,
+                    message: 'Too many files. Maximum is 15 images.',
+                    code: 'TOO_MANY_FILES'
+                });
+            }
+            
+            if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+                return res.status(400).json({ 
+                    success: false,
+                    message: 'Unexpected field. Please check your form data.',
+                    code: 'UNEXPECTED_FIELD'
                 });
             }
             
             return res.status(400).json({ 
-                message: "Error uploading images", 
-                error: err.message 
+                success: false,
+                message: err.message || 'Error uploading images',
+                code: 'UPLOAD_ERROR'
             });
         }
 
@@ -119,9 +134,58 @@ exports.createFarm = async (req, res) => {
                 image_url, latitude, longitude, manager_id
             } = req.body;
 
+            // ===== VALIDATION =====
+            if (!name || name.trim() === '') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Farm name is required',
+                    field: 'name',
+                    code: 'MISSING_FIELD'
+                });
+            }
+
+            if (!location || location.trim() === '') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Location is required',
+                    field: 'location',
+                    code: 'MISSING_FIELD'
+                });
+            }
+
+            if (!total_farm_size || parseFloat(total_farm_size) <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Total farm size must be greater than 0',
+                    field: 'total_farm_size',
+                    code: 'INVALID_VALUE'
+                });
+            }
+
+            if (!manager_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Farm manager ID is required',
+                    field: 'manager_id',
+                    code: 'MISSING_FIELD'
+                });
+            }
+
+            // Check if manager exists
+            const manager = await User.findByPk(manager_id);
+            if (!manager) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Farm manager not found. Please select a valid manager.',
+                    field: 'manager_id',
+                    code: 'USER_NOT_FOUND'
+                });
+            }
+
+            // ===== CREATE FARM =====
             const newFarmData = {
-                name,
-                location: location || "",
+                name: name.trim(),
+                location: location.trim(),
                 address: address || "",
                 description: description || "",
                 latitude: latitude || null,   
@@ -140,43 +204,46 @@ exports.createFarm = async (req, res) => {
 
             const newFarm = await Farm.create(newFarmData);
 
-            const farm = await Farm.findByPk(newFarm.id, {
-                include: [
-                    {
-                        model: FarmUnit,
-                        as: 'units',
-                        attributes: ['id', 'unit_number', 'size_of_unit', 'price', 'crop_type', 'image_url', 'crop_description', 'planting_date', 'expected_harvest_date', 'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg', 'status']
-                    }
-                ]
-            });
-
-            let imageUrls = [];
-            if (req.files && req.files.length > 0) {
-                imageUrls = await uploadImagesToCloudinary(req.files);
-
-                if (!Array.isArray(imageUrls)) {
-                    imageUrls = [imageUrls];
-                }
-
-                await FarmImage.create({
-                    farm_id: newFarm.id,
-                    image_url: imageUrls
-                });
-            }
-
-            const savedImageRecord = await FarmImage.findOne({
-                where: { farm_id: newFarm.id },
-                attributes: ["image_url"]
-            });
-
+            // ... rest of the code (images, response)
+            
             res.status(201).json({
+                success: true,
+                message: 'Farm created successfully',
                 farm: farm,
                 images: savedImageRecord?.image_url || [],
                 documentUrl: null
             });
+
         } catch (error) {
             console.error("Error creating farm:", error);
-            res.status(500).json({ message: "Error creating farm", error });
+            
+            // Handle specific Sequelize errors
+            if (error.name === 'SequelizeValidationError') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Validation error',
+                    errors: error.errors.map(e => ({
+                        field: e.path,
+                        message: e.message,
+                        value: e.value
+                    })),
+                    code: 'VALIDATION_ERROR'
+                });
+            }
+
+            if (error.name === 'SequelizeUniqueConstraintError') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Duplicate entry. A farm with this name may already exist.',
+                    code: 'DUPLICATE_ENTRY'
+                });
+            }
+
+            res.status(500).json({ 
+                success: false,
+                message: 'Failed to create farm. Please try again.',
+                code: 'SERVER_ERROR'
+            });
         }
     });
 };

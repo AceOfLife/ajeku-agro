@@ -18,32 +18,61 @@ const {
   Investor
 } = require('../models');
 
+// paymentController.js - initializePayment (Updated with specific errors)
+
 exports.initializePayment = async (req, res) => {
   try {
     const { user_id, farm_id, unit_id, payment_type } = req.body;
 
-    // Validate required fields
+    // ===== VALIDATION =====
     if (!user_id) {
-      return res.status(400).json({ message: 'User ID is required' });
-    }
-    if (!farm_id) {
-      return res.status(400).json({ message: 'Farm ID is required' });
-    }
-    if (!unit_id) {
-      return res.status(400).json({ message: 'Unit ID is required' });
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+        field: 'user_id',
+        code: 'MISSING_FIELD'
+      });
     }
 
+    if (!farm_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Farm ID is required',
+        field: 'farm_id',
+        code: 'MISSING_FIELD'
+      });
+    }
+
+    if (!unit_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Unit ID is required',
+        field: 'unit_id',
+        code: 'MISSING_FIELD'
+      });
+    }
+
+    // ===== CHECK USER =====
     const user = await User.findByPk(user_id);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'User not found. Please log in again.',
+        code: 'USER_NOT_FOUND'
+      });
     }
 
+    // ===== CHECK FARM =====
     const farm = await Farm.findByPk(farm_id);
     if (!farm) {
-      return res.status(404).json({ message: 'Farm not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Farm not found. The farm may have been deleted.',
+        code: 'FARM_NOT_FOUND'
+      });
     }
 
-    // Get the specific unit
+    // ===== CHECK UNIT =====
     const unit = await FarmUnit.findOne({
       where: {
         id: unit_id,
@@ -53,46 +82,139 @@ exports.initializePayment = async (req, res) => {
     });
 
     if (!unit) {
-      return res.status(404).json({ 
-        message: 'Unit not found or not available for purchase' 
+      return res.status(404).json({
+        success: false,
+        message: 'Unit not available for purchase. It may have been sold or reserved.',
+        code: 'UNIT_NOT_AVAILABLE'
       });
     }
 
-    // Calculate amount (single unit)
+    // ===== CHECK AMOUNT =====
     const totalAmount = parseFloat(unit.price);
+    
+    if (isNaN(totalAmount) || totalAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid price for this unit. Please contact support.',
+        code: 'INVALID_PRICE'
+      });
+    }
+
+    // Paystack limits (adjust based on your account)
+    const maxAmount = 100000000; // ₦100,000,000
+    const minAmount = 100; // ₦100
+
+    if (totalAmount > maxAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Amount exceeds maximum allowed (₦${maxAmount.toLocaleString()}). Please contact support.`,
+        code: 'AMOUNT_TOO_LARGE',
+        max: maxAmount
+      });
+    }
+
+    if (totalAmount < minAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Minimum amount is ₦${minAmount.toLocaleString()}.`,
+        code: 'AMOUNT_TOO_SMALL',
+        min: minAmount
+      });
+    }
+
     const amountInKobo = Math.round(totalAmount * 100);
 
-    const response = await axios.post(
-      "https://api.paystack.co/transaction/initialize",
-      {
-        email: user.email,
-        amount: amountInKobo,
-        currency: "NGN",
-        callback_url: `https://ajeku-agro.vercel.app/payment-success?farmId=${farm.id}`,
-        metadata: {
-          user_id: user.id,
-          farm_id: farm.id,
-          unit_id: unit.id,
-          payment_type: payment_type || 'farm_unit',
-          total_amount: totalAmount
+    // ===== INITIALIZE PAYMENT =====
+    try {
+      const response = await axios.post(
+        "https://api.paystack.co/transaction/initialize",
+        {
+          email: user.email,
+          amount: amountInKobo,
+          currency: "NGN",
+          callback_url: `https://ajekutechnology.com/payment-success?farmId=${farm.id}`,
+          metadata: {
+            user_id: user.id,
+            farm_id: farm.id,
+            unit_id: unit.id,
+            payment_type: payment_type || 'farm_unit',
+            total_amount: totalAmount
+          }
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+            "Content-Type": "application/json"
+          }
         }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
+      );
 
-    res.status(200).json({
-      paymentUrl: response.data.data.authorization_url,
-      reference: response.data.data.reference
-    });
+      // Also save transaction record with pending status
+      const transaction = await Transaction.create({
+        user_id: user.id,
+        farm_id: farm.id,
+        reference: response.data.data.reference,
+        price: totalAmount,
+        status: 'pending',
+        transaction_date: new Date(),
+        payment_type: 'farm_unit'
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Payment initialized successfully',
+        paymentUrl: response.data.data.authorization_url,
+        reference: response.data.data.reference,
+        amount: totalAmount,
+        unit: {
+          id: unit.id,
+          number: unit.unit_number,
+          crop: unit.crop_type
+        }
+      });
+
+    } catch (paystackError) {
+      console.error('Paystack Error:', paystackError.response?.data || paystackError.message);
+      
+      // Handle Paystack specific errors
+      if (paystackError.response?.data?.message) {
+        return res.status(400).json({
+          success: false,
+          message: `Payment gateway error: ${paystackError.response.data.message}`,
+          code: 'PAYSTACK_ERROR',
+          paystack: paystackError.response.data
+        });
+      }
+
+      // Rate limiting or network error
+      if (paystackError.code === 'ECONNRESET' || paystackError.code === 'ETIMEDOUT') {
+        return res.status(503).json({
+          success: false,
+          message: 'Payment gateway is temporarily unavailable. Please try again.',
+          code: 'PAYMENT_GATEWAY_DOWN'
+        });
+      }
+
+      throw paystackError;
+    }
 
   } catch (error) {
     console.error("Payment Initialization Error:", error);
-    res.status(500).json({ message: "Error initializing payment", error });
+    
+    // Database errors
+    if (error.name === 'SequelizeConnectionError') {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection temporarily unavailable. Please try again.',
+        code: 'DB_CONNECTION_ERROR'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to initialize payment. Please try again.',
+      code: 'SERVER_ERROR'
+    });
   }
 };
 
