@@ -83,6 +83,7 @@ exports.createUnits = async (req, res) => {
                 gps_coordinates: unitData.gps_coordinates || null,
                 irrigation_method: unitData.irrigation_method || null,
                 physical_delivery_offered: unitData.physical_delivery_offered || false,
+                delivery_region: unitData.delivery_region || null,
                 isInstallment: unitData.isInstallment || false,
                 is_fractional: unitData.is_fractional || true,
                 isFractionalInstallment: unitData.isFractionalInstallment || false,
@@ -131,7 +132,7 @@ exports.getUnits = async (req, res) => {
         'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
         'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
         'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
-        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method', 'delivery_region',
         'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
       ],
       include: [
@@ -165,7 +166,7 @@ exports.getUnit = async (req, res) => {
         'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
         'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
         'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
-        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method', 'delivery_region',
         'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
       ],
       include: [
@@ -217,7 +218,7 @@ exports.updateUnit = async (req, res) => {
         'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
         'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
         'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
-        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method', 'delivery_region',
         'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
       ],
       include: [
@@ -279,7 +280,7 @@ exports.purchaseUnit = async (req, res) => {
         'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
         'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
         'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
-        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method', 'delivery_region',
         'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
       ]
     });
@@ -322,7 +323,7 @@ exports.purchaseUnit = async (req, res) => {
         'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
         'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
         'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
-        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method', 'delivery_region',
         'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
       ],
       include: [
@@ -359,7 +360,7 @@ exports.getAvailableUnits = async (req, res) => {
         'id', 'farm_id', 'unit_number', 'size_of_unit', 'price', 
         'crop_type', 'crop_description', 'planting_date', 'expected_harvest_date',
         'harvest_cycle_months', 'expected_yield_per_unit_kg', 'expected_value_per_kg',
-        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method',
+        'soil_type', 'image_url', 'gps_coordinates', 'irrigation_method', 'delivery_region',
         'status', 'current_owner_id', 'nft_token_id', 'createdAt', 'updatedAt'
       ],
       order: [['price', 'ASC']]

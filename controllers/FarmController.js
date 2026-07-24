@@ -87,9 +87,7 @@ const splitToArray = (field) => {
 
 const axios = require("axios");
 
-// controllers/FarmController.js - createFarm (Updated)
 
-// controllers/FarmController.js - createFarm (UPDATED)
 
 exports.createFarm = async (req, res) => {
     upload(req, res, async (err) => {

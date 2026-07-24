@@ -129,6 +129,11 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: true,
       allowNull: false,
     },
+    delivery_region: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Delivery region for this specific unit',
+    },
     nft_token_id: {
       type: DataTypes.STRING,
       allowNull: true,
