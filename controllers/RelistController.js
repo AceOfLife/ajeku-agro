@@ -137,7 +137,7 @@ exports.relistFarm = async (req, res) => {
 };
 
 // Relist Controller
-exports.relistFarmUnit = async (req, res) => {
+exports.relistFarmUnits = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { unitId } = req.params;
@@ -394,6 +394,6 @@ exports.getRelistedFarmUnits = async (req, res) => {
 module.exports = {
   checkRelistEligibility,  
   relistFarm,          
-  relistFarmUnit,         
+  relistFarmUnits,         
   getRelistedFarmUnits,    
 };
