@@ -136,7 +136,7 @@ exports.relistFarm = async (req, res) => {
   }
 };
 
-// Relist Controller
+// Relist Controller - UNITS
 exports.relistFarmUnits = async (req, res) => {
   const t = await sequelize.transaction();
   try {
@@ -359,7 +359,6 @@ exports.getRelistedFarmUnits = async (req, res) => {
         {
           model: User,
           attributes: ['id', 'name', 'email', 'contactNumber']
-          // Removed 'as: owner'
         }
       ],
       order: [['relist_price', 'ASC']]
@@ -391,9 +390,10 @@ exports.getRelistedFarmUnits = async (req, res) => {
   }
 };
 
+// ✅ FIXED: Properly export all functions
 module.exports = {
-  checkRelistEligibility,  
-  relistFarm,          
-  relistFarmUnits,         // relistFarmUnit and not relistFarmUnit
-  getRelistedFarmUnits,    
+  checkRelistEligibility,
+  relistFarm,
+  relistFarmUnits,  // ← This matches the function name above
+  getRelistedFarmUnits,
 };
