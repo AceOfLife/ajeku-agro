@@ -394,6 +394,6 @@ exports.getRelistedFarmUnits = async (req, res) => {
 module.exports = {
   checkRelistEligibility,  
   relistFarm,          
-  relistFarmUnits,         
+  relistFarmUnits,         // relistFarmUnit and not relistFarmUnit
   getRelistedFarmUnits,    
 };
