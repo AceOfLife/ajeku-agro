@@ -288,55 +288,55 @@ exports.relistFarmUnits = async (req, res) => {
   }
 };
 
-// exports.checkRelistEligibility = async (req, res) => {
-//   try {
-//     const { farmId } = req.params;
-//     const userId = req.user.id;
+exports.checkRelistEligibility = async (req, res) => {
+  try {
+    const { farmId } = req.params;
+    const userId = req.user.id;
 
-//     const [fullOwnership, fractionalOwnership, installmentOwnership] = await Promise.all([
-//       FullFarmOwnership.findOne({
-//         where: {
-//           user_id: userId,
-//           farm_id: farmId
-//         }
-//       }),
-//       FarmUnitOwnership.findOne({
-//         where: {
-//           user_id: userId,
-//           farm_id: farmId,
-//           units_purchased: { [Op.gt]: 0 }
-//         }
-//       }),
-//       FarmInstallmentOwnership.findOne({
-//         where: {
-//           user_id: userId,
-//           farm_id: farmId,
-//           status: 'completed'
-//         }
-//       })
-//     ]);
+    const [fullOwnership, fractionalOwnership, installmentOwnership] = await Promise.all([
+      FullFarmOwnership.findOne({
+        where: {
+          user_id: userId,
+          farm_id: farmId
+        }
+      }),
+      FarmUnitOwnership.findOne({
+        where: {
+          user_id: userId,
+          farm_id: farmId,
+          units_purchased: { [Op.gt]: 0 }
+        }
+      }),
+      FarmInstallmentOwnership.findOne({
+        where: {
+          user_id: userId,
+          farm_id: farmId,
+          status: 'completed'
+        }
+      })
+    ]);
 
-//     const canRelist = fullOwnership !== null ||
-//                      fractionalOwnership !== null ||
-//                      installmentOwnership !== null;
+    const canRelist = fullOwnership !== null ||
+                     fractionalOwnership !== null ||
+                     installmentOwnership !== null;
 
-//     res.status(200).json({
-//       success: true,
-//       canRelist,
-//       message: canRelist
-//         ? "User can relist this farm"
-//         : "User cannot relist - no valid ownership or incomplete payments"
-//     });
+    res.status(200).json({
+      success: true,
+      canRelist,
+      message: canRelist
+        ? "User can relist this farm"
+        : "User cannot relist - no valid ownership or incomplete payments"
+    });
 
-//   } catch (error) {
-//     console.error('Relist eligibility check error:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to check relist eligibility",
-//       error: process.env.NODE_ENV === 'development' ? error.message : undefined
-//     });
-//   }
-// };
+  } catch (error) {
+    console.error('Relist eligibility check error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to check relist eligibility",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
 
 exports.getRelistedFarmUnits = async (req, res) => {
   try {
@@ -388,12 +388,4 @@ exports.getRelistedFarmUnits = async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
-};
-
-// ✅ FIXED: Properly export all functions
-module.exports = {
-  checkRelistEligibility,
-  relistFarm,
-  relistFarmUnits,  // ← This matches the function name above
-  getRelistedFarmUnits,
 };
