@@ -136,147 +136,153 @@ exports.relistFarm = async (req, res) => {
   }
 };
 
-exports.relistFarmUnits = async (req, res) => {
+// Relist Controller
+exports.relistFarmUnit = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { farmId } = req.params;  // ← FROM URL PARAM
-    const { unitIds, pricePerUnit } = req.body;  // ← FROM BODY
+    const { unitId } = req.params;
+    const { relistPrice } = req.body;
     const userId = req.user.id;
 
-    // Validate farmId
-    if (!farmId) {
+    // Get the unit
+    const unit = await FarmUnit.findByPk(unitId, {
+      include: [{ model: Farm, as: 'farm' }],
+      transaction: t
+    });
+
+    if (!unit) {
       await t.rollback();
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
-        message: "farmId is required in the URL"
+        message: 'Unit not found'
       });
     }
 
-    if (!Array.isArray(unitIds) || unitIds.length === 0 || !pricePerUnit || pricePerUnit <= 0) {
+    // Check ownership
+    const ownership = await FarmUnitOwnership.findOne({
+      where: { farm_unit_id: unitId, user_id: userId },
+      order: [['createdAt', 'DESC']],
+      transaction: t
+    });
+
+    if (!ownership) {
       await t.rollback();
-      return res.status(400).json({
+      return res.status(403).json({
         success: false,
-        message: "Invalid request data. Provide valid unit IDs and positive price."
+        message: 'You do not own this unit'
       });
     }
 
-    const validUnits = await FarmUnitOwnership.findAll({
+    // Check if already relisted
+    if (unit.status === 'relisted') {
+      await t.rollback();
+      return res.status(409).json({
+        success: false,
+        message: 'This unit is already relisted'
+      });
+    }
+
+    // ===== CHECK AVAILABLE UNITS =====
+    const availableUnits = await FarmUnit.count({
       where: {
-        id: { [Op.in]: unitIds },
-        user_id: userId,
-        farm_id: parseInt(farmId),
-        units_purchased: { [Op.gt]: 0 }
+        farm_id: unit.farm_id,
+        status: 'available',
+        id: { [Op.ne]: unitId }
       },
       transaction: t
     });
 
-    if (validUnits.length !== unitIds.length) {
-      await t.rollback();
-      return res.status(403).json({
-        success: false,
-        message: "You don't own all the specified units or they're invalid"
-      });
+    const hasAvailableUnits = availableUnits > 0;
+
+    // ===== PRICING RULES =====
+    const originalPrice = parseFloat(ownership.purchase_amount || unit.price);
+    const proposedPrice = parseFloat(relistPrice);
+    
+    let minPrice, maxPrice;
+
+    if (hasAvailableUnits) {
+      // Scenario 1: Units still available
+      minPrice = originalPrice * 0.80;  // 80%
+      maxPrice = originalPrice * 0.95;  // 95%
+    } else {
+      // Scenario 2: No units available (fully sold out)
+      minPrice = originalPrice * 0.80;  // 80%
+      maxPrice = originalPrice * 1.20;  // 120% ← PREMIUM PRICING
     }
 
-    if (validUnits.some(unit => unit.is_relisted)) {
+    // Validate price
+    if (proposedPrice < minPrice) {
       await t.rollback();
-      return res.status(409).json({
+      return res.status(400).json({
         success: false,
-        message: "One or more units are already relisted"
-      });
-    }
-
-    await FarmUnitOwnership.update(
-      {
-        is_relisted: true,
-        relist_price: pricePerUnit,
-        updated_at: new Date()
-      },
-      {
-        where: { id: { [Op.in]: unitIds } },
-        transaction: t
-      }
-    );
-
-    const [farm, user] = await Promise.all([
-      Farm.findByPk(farmId, { transaction: t }),
-      User.findByPk(userId, { transaction: t })
-    ]);
-
-    let notificationsSent = false;
-    try {
-      const io = req.app.get('socketio');
-
-      const clientNotification = await Notification.create({
-        user_id: userId,
-        title: 'Farm Units Relisted',
-        message: `You've successfully relisted ${unitIds.length} unit(s) in ${farm.name}`,
-        type: 'payment',
-        related_entity_id: parseInt(farmId),
-        metadata: {
-          unit_ids: unitIds,
-          price_per_unit: pricePerUnit,
-          farm_id: parseInt(farmId),
-          action: 'relist'
+        message: `Minimum relist price is ${minPrice.toLocaleString()} (80% of original)`,
+        rules: {
+          minPrice,
+          maxPrice,
+          originalPrice,
+          hasAvailableUnits,
+          availableUnits
         }
-      }, { transaction: t });
-
-      const admins = await User.findAll({
-        where: { role: 'admin' },
-        transaction: t
       });
-
-      await Promise.all(
-        admins.map(admin =>
-          Notification.create({
-            user_id: admin.id,
-            title: 'New Farm Units Relisted',
-            message: `User ${user.email} relisted ${unitIds.length} unit(s) in ${farm.name}`,
-            type: 'admin_alert',
-            related_entity_id: parseInt(farmId),
-            metadata: {
-              user_id: userId,
-              unit_ids: unitIds,
-              price_per_unit: pricePerUnit,
-              farm_id: parseInt(farmId),
-              action: 'relist'
-            }
-          }, { transaction: t })
-        )
-      );
-
-      notificationsSent = true;
-
-      if (io) {
-        io.to(`user_${userId}`).emit('new_notification', {
-          event: 'payment_success',
-          data: clientNotification
-        });
-      }
-    } catch (notificationError) {
-      console.error('Notification failed:', notificationError);
     }
+
+    if (proposedPrice > maxPrice) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: hasAvailableUnits 
+          ? `Maximum relist price is ${maxPrice.toLocaleString()} (95% of original) because there are still ${availableUnits} unit(s) available on this farm`
+          : `Maximum relist price is ${maxPrice.toLocaleString()} (120% of original) because this farm is fully sold out`,
+        rules: {
+          minPrice,
+          maxPrice,
+          originalPrice,
+          hasAvailableUnits,
+          availableUnits
+        }
+      });
+    }
+
+    // Update unit to relisted
+    await unit.update({
+      status: 'relisted',
+      relist_price: proposedPrice,
+      relist_date: new Date(),
+      relist_original_price: originalPrice
+    }, { transaction: t });
+
+    // Calculate platform fee (5%)
+    const platformFee = proposedPrice * 0.05;
+    const sellerPayout = proposedPrice - platformFee;
 
     await t.commit();
 
     return res.status(200).json({
       success: true,
-      message: notificationsSent
-        ? "Farm units relisted successfully"
-        : "Farm units relisted but notifications failed",
+      message: 'Unit relisted successfully',
       data: {
-        relistedUnits: unitIds,
-        pricePerUnit,
-        notificationsEnabled: notificationsSent
+        unit: {
+          id: unit.id,
+          unit_number: unit.unit_number,
+          crop_type: unit.crop_type,
+          status: 'relisted',
+          original_price: originalPrice,
+          relist_price: proposedPrice,
+          platform_fee: platformFee,
+          seller_payout: sellerPayout,
+          has_available_units: hasAvailableUnits,
+          available_units_count: availableUnits,
+          pricing_rule: hasAvailableUnits ? 'standard' : 'premium'
+        }
       }
     });
 
   } catch (error) {
     await t.rollback();
-    console.error('Relist units error:', error);
+    console.error('Relist error:', error);
     return res.status(500).json({
       success: false,
-      message: "Failed to relist farm units",
+      message: 'Failed to relist unit',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
