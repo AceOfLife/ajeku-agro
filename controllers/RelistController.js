@@ -390,3 +390,11 @@ exports.getRelistedFarmUnits = async (req, res) => {
     });
   }
 };
+
+module.exports = {
+  checkRelistEligibility,
+  relistFarm,
+  relistFarmUnits,
+  getRelistedFarmUnits,
+  relistFarmUnit 
+};
