@@ -332,7 +332,7 @@ exports.getTransactionHistory = async (req, res) => {
         {
           model: Farm,
           as: 'farm',
-          attributes: ['id', 'name', 'crop_type', 'location'],
+          attributes: ['id', 'name', 'location'],
           // include: [
           //   {
           //     model: User,
