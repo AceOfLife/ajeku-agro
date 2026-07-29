@@ -333,13 +333,13 @@ exports.getTransactionHistory = async (req, res) => {
           model: Farm,
           as: 'farm',
           attributes: ['id', 'name', 'crop_type', 'location'],
-          include: [
-            {
-              model: User,
-              as: 'manager',
-              attributes: ['id', 'name']
-            }
-          ]
+          // include: [
+          //   {
+          //     model: User,
+          //     as: 'manager',
+          //     attributes: ['id', 'name']
+          //   }
+          // ]
         }
       ],
       attributes: ['id', 'price', 'status', 'transaction_date'],
@@ -374,13 +374,13 @@ exports.getUserTransactionHistory = async (req, res) => {
           model: Farm,
           as: "farm",
           attributes: ["id", "name", "crop_type", "location"],
-          include: [
-            {
-              model: User,
-              as: "manager",
-              attributes: ["id", "name"]
-            }
-          ]
+          // include: [
+          //   {
+          //     model: User,
+          //     as: "manager",
+          //     attributes: ["id", "name"]
+          //   }
+          // ]
         }
       ],
       attributes: ["id", "price", "status", "transaction_date", "payment_type", "units_purchased"],
