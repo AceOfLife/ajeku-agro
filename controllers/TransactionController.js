@@ -350,7 +350,7 @@ exports.getTransactionHistory = async (req, res) => {
       transactionId: transaction.id,
       userFrom: transaction.farm?.manager?.name || 'Ajeku',
       userTo: transaction.user?.name || 'Unknown',
-      farmType: transaction.farm?.crop_type || 'N/A',
+      farmType: transaction.farm?.name || 'N/A',
       location: transaction.farm?.location || 'N/A',
       date: transaction.transaction_date.toISOString().split('T')[0],
       status: transaction.status
@@ -397,7 +397,7 @@ exports.getUserTransactionHistory = async (req, res) => {
         transactionId: transaction.id,
         userFrom,
         farmName: transaction.farm?.name || "Unknown",
-        cropType: transaction.farm?.crop_type || "N/A",
+        // cropType: transaction.farm?.crop_type || "N/A",
         location: transaction.farm?.location || "N/A",
         amountPaid: transaction.price,
         status: transaction.status,
