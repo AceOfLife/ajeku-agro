@@ -75,7 +75,7 @@ exports.getAllTransactions = async (req, res) => {
               {
                   model: Farm,
                   as: 'farm',
-                  attributes: ['id', 'name', 'location', 'price_per_unit'],
+                  attributes: ['id', 'name', 'location'],
               }
           ],
           order: [['createdAt', 'DESC']],
@@ -107,7 +107,7 @@ exports.getTransactionById = async (req, res) => {
               {
                   model: Farm,
                   as: "farm",
-                  attributes: ["id", "name", "location", "price_per_unit"],
+                  attributes: ["id", "name", "location"],
               },
           ],
       });
