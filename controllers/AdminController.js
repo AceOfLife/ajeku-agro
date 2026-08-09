@@ -1,4 +1,4 @@
-const { Farm, User, Transaction, FarmSalesGoal } = require('../models');
+const { Farm, User, Transaction, FarmSalesGoal, FarmUnitOwnership } = require('../models');
 const bcryptjs = require('bcryptjs');
 const { uploadImagesToCloudinary } = require('../config/multerConfig');
 const { Op } = require('sequelize');
@@ -126,7 +126,7 @@ AdminController.getAdminStats = async (req, res) => {
       Transaction.sum('price', { where: { status: 'success' } }),
       User.count({ where: { role: 'farm_manager' } }),
       User.count({ where: { role: 'investor' } }),
-      Transaction.sum('units_purchased', { where: { status: 'success' } }), // ← NEW
+      Transaction.sum('units_purchased', { where: { status: 'success', units_purchased: { [Op.ne]: null } } }), 
     ]);
 
     res.status(200).json({
@@ -134,7 +134,7 @@ AdminController.getAdminStats = async (req, res) => {
       totalRevenue: totalRevenueData || 0,
       totalFarmManagers,
       totalInvestors,
-      totalUnitsSold: totalUnitsSold || 0, // ← NEW
+      totalUnitsSold: totalUnitsSold || 0, 
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
