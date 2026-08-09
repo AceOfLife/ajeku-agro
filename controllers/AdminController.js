@@ -121,11 +121,12 @@ AdminController.getProfile = async (req, res) => {
 
 AdminController.getAdminStats = async (req, res) => {
   try {
-    const [totalFarms, totalRevenueData, totalFarmManagers, totalInvestors] = await Promise.all([
+    const [totalFarms, totalRevenueData, totalFarmManagers, totalInvestors, totalUnitsSold] = await Promise.all([
       Farm.count(),
       Transaction.sum('price', { where: { status: 'success' } }),
       User.count({ where: { role: 'farm_manager' } }),
       User.count({ where: { role: 'investor' } }),
+      Transaction.sum('units_purchased', { where: { status: 'success' } }), // ← NEW
     ]);
 
     res.status(200).json({
@@ -133,6 +134,7 @@ AdminController.getAdminStats = async (req, res) => {
       totalRevenue: totalRevenueData || 0,
       totalFarmManagers,
       totalInvestors,
+      totalUnitsSold: totalUnitsSold || 0, // ← NEW
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
