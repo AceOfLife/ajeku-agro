@@ -142,20 +142,55 @@ exports.recordHarvest = async (req, res) => {
     const { harvestCycleId } = req.params;
     const { actual_yield_kg, actual_market_price_per_kg } = req.body;
 
-    const harvestCycle = await HarvestCycle.findByPk(harvestCycleId, {
-      include: [{ model: Farm, as: 'farm' }]
-    });
+    // Validate required fields
+    if (!actual_yield_kg || !actual_market_price_per_kg) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'actual_yield_kg and actual_market_price_per_kg are required'
+      });
+    }
 
+    const harvestCycle = await HarvestCycle.findByPk(harvestCycleId);
     if (!harvestCycle) {
       await t.rollback();
       return res.status(404).json({ message: 'Harvest cycle not found' });
     }
 
-    if (harvestCycle.status !== 'preferences_locked') {
+    // Check if already harvested
+    if (harvestCycle.status === 'harvested' || 
+        harvestCycle.status === 'distributing' || 
+        harvestCycle.status === 'completed') {
       await t.rollback();
-      return res.status(400).json({ message: 'Harvest must have preferences locked before recording harvest' });
+      return res.status(400).json({ 
+        message: `Cannot record harvest. Current status is ${harvestCycle.status}` 
+      });
     }
 
+    // Check if lock date has passed
+    const now = new Date();
+    const lockDate = new Date(harvestCycle.preference_lock_date);
+    
+    if (now < lockDate) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: `Cannot record harvest before preference lock date. Lock date is ${lockDate.toISOString()}` 
+      });
+    }
+
+    // 🔒 AUTO-LOCK ALL PREFERENCES
+    await InvestorProducePreference.update(
+      { is_locked: true },
+      { 
+        where: { 
+          harvest_cycle_id: harvestCycleId,
+          is_locked: false 
+        },
+        transaction: t 
+      }
+    );
+
+    // ✅ RECORD HARVEST
     await harvestCycle.update({
       actual_yield_kg,
       actual_market_price_per_kg,
@@ -166,7 +201,7 @@ exports.recordHarvest = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Harvest recorded successfully',
+      message: 'Harvest recorded and preferences locked successfully',
       data: harvestCycle
     });
   } catch (error) {
