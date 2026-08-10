@@ -19,6 +19,7 @@ const { upload } = require('../config/multerConfig');
 
 const bankOfHeavenRoutes = require('./bankOfHeavenRoutes');
 
+// Admin Profile
 router.put('/profile', authenticate, authorizeAdmin, upload, AdminController.updateProfile);
 router.get('/profile', authenticate, authorizeAdmin, AdminController.getProfile);
 router.put('/change-password', authenticate, authorizeAdmin, AdminController.changePassword);
@@ -52,7 +53,6 @@ router.get('/farm-managers', authenticate, FarmManagerController.getAllFarmManag
 router.post('/farm-managers', authenticate, authorizeAdmin, FarmManagerController.createFarmManager);
 router.put('/farm-managers/:id', authenticate, authorizeAdmin, FarmManagerController.updateFarmManager);
 router.delete('/farm-managers/:id', authenticate, authorizeAdmin, FarmManagerController.deleteFarmManager);
-
 router.post('/farm-managers/create-with-user', authenticate, authorizeAdmin, FarmManagerController.createFarmManagerWithUser);
 
 // Farm Manager Specializations
@@ -92,6 +92,12 @@ router.delete('/reviews/:id', authenticate, authorizeAdmin, FarmReviewController
 // Stats Routes
 router.get('/stats/summary', authenticate, authorizeAdmin, AdminController.getAdminStats);
 router.get('/stats/referrals', authenticate, authorizeAdmin, AdminController.getReferralStats);
+
+//  Sold Units Routes
+router.get('/sold-units', authenticate, authorizeAdmin, AdminController.getSoldUnits);
+// router.get('/sold-units/paginated', authenticate, authorizeAdmin, AdminController.getSoldUnitsPaginated);
+// router.get('/sold-units/export', authenticate, authorizeAdmin, AdminController.exportSoldUnits);
+// router.get('/farms/:farmId/sold-units', authenticate, authorizeAdmin, AdminController.getSoldUnitsByFarm);
 
 // Sales Goals
 router.post('/sales-goals', authenticate, authorizeAdmin, AdminController.setSalesGoals);
