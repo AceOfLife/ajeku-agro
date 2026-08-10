@@ -94,7 +94,7 @@ router.get('/stats/summary', authenticate, authorizeAdmin, AdminController.getAd
 router.get('/stats/referrals', authenticate, authorizeAdmin, AdminController.getReferralStats);
 
 //  Sold Units Routes
-router.get('/sold-units', authenticate, authorizeAdmin, AdminController.getSoldUnits);
+router.get('/sold-units', authenticate, authorizeAdmin, AdminController.getSoldUnits); // test
 // router.get('/sold-units/paginated', authenticate, authorizeAdmin, AdminController.getSoldUnitsPaginated);
 // router.get('/sold-units/export', authenticate, authorizeAdmin, AdminController.exportSoldUnits);
 // router.get('/farms/:farmId/sold-units', authenticate, authorizeAdmin, AdminController.getSoldUnitsByFarm);
