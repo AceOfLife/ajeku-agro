@@ -298,37 +298,9 @@ AdminController.getSoldUnits = async (req, res) => {
       order: [['transaction_date', 'DESC']]
     });
 
-    // Calculate summary statistics
-    const totalUnits = soldUnits.reduce((sum, t) => sum + (parseFloat(t.units_purchased) || 0), 0);
-    const totalRevenue = soldUnits.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
-    const totalTransactions = soldUnits.length;
-
-    // Group by farm
-    const farmStats = {};
-    soldUnits.forEach(t => {
-      const farmName = t.farm?.name || 'Unknown Farm';
-      if (!farmStats[farmName]) {
-        farmStats[farmName] = {
-          farmId: t.farm?.id || null,
-          units: 0,
-          revenue: 0,
-          transactions: 0
-        };
-      }
-      farmStats[farmName].units += parseFloat(t.units_purchased) || 0;
-      farmStats[farmName].revenue += parseFloat(t.price) || 0;
-      farmStats[farmName].transactions += 1;
-    });
-
     res.status(200).json({
       success: true,
-      summary: {
-        totalUnits,
-        totalRevenue,
-        totalTransactions,
-        farmsCount: Object.keys(farmStats).length
-      },
-      farmBreakdown: farmStats,
+      count: soldUnits.length,
       transactions: soldUnits
     });
   } catch (error) {
