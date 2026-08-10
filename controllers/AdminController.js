@@ -292,7 +292,7 @@ AdminController.getSoldUnits = async (req, res) => {
         {
           model: Farm,
           as: 'farm',
-          attributes: ['id', 'name', 'location', 'crop_type']
+          attributes: ['id', 'name', 'location']
         }
       ],
       order: [['transaction_date', 'DESC']]
