@@ -266,7 +266,7 @@ AdminController.getSalesGoalsProgress = async (req, res) => {
   }
 };
 
-// Get all sold units with unit details using FarmUnitOwnership
+// Simplified getSoldUnits - No transaction_id needed
 AdminController.getSoldUnits = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -298,15 +298,11 @@ AdminController.getSoldUnits = async (req, res) => {
         {
           model: Farm,
           as: 'farm',
-          attributes: ['id', 'name', 'location', 'image_url']
-        },
-        {
-          model: FarmUnitOwnership,
-          as: 'unitOwnerships', // ← Include unit ownerships
+          attributes: ['id', 'name', 'location', 'image_url'],
           include: [
             {
               model: FarmUnit,
-              as: 'farmUnit',
+              as: 'units',
               attributes: [
                 'id',
                 'unit_number',
@@ -336,25 +332,13 @@ AdminController.getSoldUnits = async (req, res) => {
     const transactions = rows.map(transaction => {
       const t = transaction.toJSON();
       
-      // Get units from ownerships
-      const units = t.unitOwnerships?.map(ownership => ({
-        id: ownership.farmUnit?.id,
-        unit_number: ownership.farmUnit?.unit_number,
-        size_of_unit: ownership.farmUnit?.size_of_unit,
-        price: ownership.farmUnit?.price,
-        crop_type: ownership.farmUnit?.crop_type,
-        crop_description: ownership.farmUnit?.crop_description,
-        soil_type: ownership.farmUnit?.soil_type,
-        image_url: ownership.farmUnit?.image_url, // ← Unit image URL
-        gps_coordinates: ownership.farmUnit?.gps_coordinates,
-        irrigation_method: ownership.farmUnit?.irrigation_method,
-        delivery_region: ownership.farmUnit?.delivery_region,
-        status: ownership.farmUnit?.status,
-        expected_yield_per_unit_kg: ownership.farmUnit?.expected_yield_per_unit_kg,
-        expected_value_per_kg: ownership.farmUnit?.expected_value_per_kg,
-        units_purchased: ownership.units_purchased,
-        ownership_id: ownership.id
-      })) || [];
+      // Get all units from the farm
+      const farmUnits = t.farm?.units || [];
+      
+      // Filter units that are sold and owned by the transaction user
+      const soldUnits = farmUnits.filter(unit => 
+        unit.status === 'sold' && unit.current_owner_id === t.user_id
+      );
 
       return {
         id: t.id,
@@ -370,11 +354,28 @@ AdminController.getSoldUnits = async (req, res) => {
           id: t.farm?.id,
           name: t.farm?.name,
           location: t.farm?.location,
-          image_url: t.farm?.image_url
-        },
-        units: units
+          image_url: t.farm?.image_url,
+          units: soldUnits.map(unit => ({
+            id: unit.id,
+            unit_number: unit.unit_number,
+            size_of_unit: unit.size_of_unit,
+            price: unit.price,
+            crop_type: unit.crop_type,
+            crop_description: unit.crop_description,
+            soil_type: unit.soil_type,
+            image_url: unit.image_url,  // ← Unit image URL
+            gps_coordinates: unit.gps_coordinates,
+            irrigation_method: unit.irrigation_method,
+            delivery_region: unit.delivery_region,
+            status: unit.status,
+            expected_yield_per_unit_kg: unit.expected_yield_per_unit_kg,
+            expected_value_per_kg: unit.expected_value_per_kg
+          }))
+        }
       };
     });
+
+    const totalRevenue = rows.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
 
     res.status(200).json({
       success: true,
@@ -383,6 +384,10 @@ AdminController.getSoldUnits = async (req, res) => {
         totalPages: Math.ceil(count / limit),
         totalItems: count,
         itemsPerPage: limit
+      },
+      summary: {
+        totalRevenue: totalRevenue,
+        totalTransactions: count
       },
       count: transactions.length,
       transactions: transactions
@@ -396,5 +401,4 @@ AdminController.getSoldUnits = async (req, res) => {
     });
   }
 };
-
 module.exports = AdminController;
