@@ -520,23 +520,6 @@ exports.getMyUnits = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get the investor record
-    const investor = await Investor.findOne({
-      where: { user_id: userId },
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'name', 'email', 'contactNumber']
-      }]
-    });
-
-    if (!investor) {
-      return res.status(404).json({
-        success: false,
-        message: 'Investor profile not found'
-      });
-    }
-
     // Find all units owned by this user
     const ownedUnits = await FarmUnit.findAll({
       where: {
@@ -566,7 +549,7 @@ exports.getMyUnits = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    // Get the most recent ownership record for each unit
+    // Get ownership records for each unit
     const unitsWithOwnership = await Promise.all(ownedUnits.map(async (unit) => {
       const ownership = await FarmUnitOwnership.findOne({
         where: {
@@ -640,12 +623,6 @@ exports.getMyUnits = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      investor: {
-        id: investor.id,
-        name: investor.user?.name || 'Unknown',
-        email: investor.user?.email || 'N/A',
-        contactNumber: investor.user?.contactNumber || 'N/A'
-      },
       summary: {
         totalUnits,
         totalValue,
@@ -670,14 +647,8 @@ exports.getInvestorUnitsById = async (req, res) => {
   try {
     const { investorId } = req.params;
 
-    const investor = await Investor.findByPk(investorId, {
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'name', 'email', 'contactNumber']
-      }]
-    });
-
+    // Get the user_id from the investor
+    const investor = await Investor.findByPk(investorId);
     if (!investor) {
       return res.status(404).json({
         success: false,
@@ -787,13 +758,16 @@ exports.getInvestorUnitsById = async (req, res) => {
     const totalValue = units.reduce((sum, unit) => sum + parseFloat(unit.price || 0), 0);
     const uniqueFarms = new Set(units.map(u => u.farm?.id)).size;
 
+    // Get user info
+    const user = await User.findByPk(userId);
+
     res.status(200).json({
       success: true,
       investor: {
         id: investor.id,
-        name: investor.user?.name || 'Unknown',
-        email: investor.user?.email || 'N/A',
-        contactNumber: investor.user?.contactNumber || 'N/A'
+        name: user?.name || 'Unknown',
+        email: user?.email || 'N/A',
+        contactNumber: user?.contactNumber || 'N/A'
       },
       summary: {
         totalUnits,
