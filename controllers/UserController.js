@@ -35,21 +35,43 @@ exports.createUser = async (req, res) => {
       referralSource,
     }, { transaction: t });
 
+    console.log('✅ User created:', newUser.id);
+
     // ✅ CREATE INVESTOR RECORD IF ROLE IS INVESTOR
     let investor = null;
     if (newUser.role === 'investor') {
-      investor = await Investor.create({
-        user_id: newUser.id,
-        status: 'Unverified',
-        default_produce_preference: 'sell'
-      }, { transaction: t });
+      try {
+        investor = await Investor.create({
+          user_id: newUser.id,
+          status: 'Unverified',
+          default_produce_preference: 'sell'
+        }, { transaction: t });
+        console.log('✅ Investor created for user:', newUser.id);
+      } catch (investorError) {
+        console.error('❌ Failed to create investor:', investorError);
+        // Don't rollback - user is created, we can create investor later
+      }
     }
 
     await t.commit();
 
+    // If investor creation failed but we didn't rollback, try creating it outside transaction
+    if (!investor && newUser.role === 'investor') {
+      try {
+        investor = await Investor.create({
+          user_id: newUser.id,
+          status: 'Unverified',
+          default_produce_preference: 'sell'
+        });
+        console.log('✅ Investor created outside transaction for user:', newUser.id);
+      } catch (err) {
+        console.error('❌ Failed to create investor outside transaction:', err);
+      }
+    }
+
     // Generate JWT token
     const token = jwt.sign(
-      { userId: newUser.id, role: newUser.role, email: newUser.email }, 
+      { id: newUser.id, role: newUser.role, email: newUser.email }, 
       process.env.JWT_SECRET, 
       { expiresIn: '1h' }
     );
@@ -60,7 +82,8 @@ exports.createUser = async (req, res) => {
 
     res.status(201).json({
       message: 'User created successfully',
-      token,
+      accessToken: token,
+      refreshToken: crypto.randomBytes(64).toString('hex'),
       expiresIn: 3600,
       user: {
         ...userResponse,
@@ -71,7 +94,7 @@ exports.createUser = async (req, res) => {
 
   } catch (error) {
     await t.rollback();
-    console.error('Error creating user:', error);
+    console.error('❌ Error creating user:', error);
     res.status(400).json({ 
       message: 'Error creating user', 
       error: process.env.NODE_ENV === 'development' ? error.message : undefined 

@@ -813,34 +813,3 @@ exports.getInvestorUnitsById = async (req, res) => {
   }
 };
 
-// Add this to InvestorController.js
-exports.debugInvestor = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    
-    // Get user
-    const user = await User.findByPk(userId);
-    
-    // Get investor
-    const investor = await Investor.findOne({
-      where: { user_id: userId }
-    });
-    
-    res.json({
-      userId,
-      user: user ? {
-        id: user.id,
-        email: user.email,
-        role: user.role
-      } : null,
-      investor: investor ? {
-        id: investor.id,
-        user_id: investor.user_id,
-        status: investor.status
-      } : null,
-      hasInvestor: !!investor
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
