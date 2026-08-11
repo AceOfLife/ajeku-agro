@@ -1,4 +1,4 @@
-const { Investor, User, UserDocument, Notification, sequelize } = require('../models');
+const { Investor, User, UserDocument, Notification, FarmUnit, Farm, FarmUnitOwnership, sequelize } = require('../models');
 const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator');
 const { upload, uploadImagesToCloudinary, uploadDocumentsToCloudinary } = require('../config/multerConfig');
@@ -512,5 +512,303 @@ exports.changeInvestorPassword = async (req, res) => {
     res.status(200).json({ message: 'Password changed successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Error changing password', error });
+  }
+};
+
+// Get all units owned by the authenticated investor
+exports.getMyUnits = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get the investor record
+    const investor = await Investor.findOne({
+      where: { user_id: userId },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'name', 'email', 'contactNumber']
+      }]
+    });
+
+    if (!investor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Investor profile not found'
+      });
+    }
+
+    // Find all units owned by this user
+    const ownedUnits = await FarmUnit.findAll({
+      where: {
+        current_owner_id: userId,
+        status: 'sold'
+      },
+      include: [
+        {
+          model: Farm,
+          as: 'farm',
+          attributes: [
+            'id', 
+            'name', 
+            'location', 
+            'address',
+            'image_url',
+            'total_farm_size',
+            'farm_manager'
+          ]
+        },
+        {
+          model: User,
+          as: 'currentOwner',
+          attributes: ['id', 'name', 'email', 'contactNumber']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    // Get the most recent ownership record for each unit
+    const unitsWithOwnership = await Promise.all(ownedUnits.map(async (unit) => {
+      const ownership = await FarmUnitOwnership.findOne({
+        where: {
+          farm_unit_id: unit.id,
+          user_id: userId
+        },
+        attributes: [
+          'id',
+          'units_purchased',
+          'size_purchased',
+          'purchase_amount',
+          'purchase_date',
+          'is_relisted',
+          'relist_price',
+          'createdAt'
+        ],
+        order: [['purchase_date', 'DESC']]
+      });
+
+      return {
+        ...unit.toJSON(),
+        ownership: ownership ? ownership.toJSON() : null
+      };
+    }));
+
+    // Format the response
+    const units = unitsWithOwnership.map(unit => ({
+      id: unit.id,
+      unit_number: unit.unit_number,
+      size_of_unit: unit.size_of_unit,
+      price: unit.price,
+      crop_type: unit.crop_type,
+      crop_description: unit.crop_description,
+      soil_type: unit.soil_type,
+      image_url: unit.image_url,
+      gps_coordinates: unit.gps_coordinates,
+      irrigation_method: unit.irrigation_method,
+      delivery_region: unit.delivery_region,
+      status: unit.status,
+      expected_yield_per_unit_kg: unit.expected_yield_per_unit_kg,
+      expected_value_per_kg: unit.expected_value_per_kg,
+      planting_date: unit.planting_date,
+      expected_harvest_date: unit.expected_harvest_date,
+      harvest_cycle_months: unit.harvest_cycle_months,
+      farm: unit.farm ? {
+        id: unit.farm.id,
+        name: unit.farm.name,
+        location: unit.farm.location,
+        address: unit.farm.address,
+        image_url: unit.farm.image_url,
+        total_farm_size: unit.farm.total_farm_size,
+        farm_manager: unit.farm.farm_manager
+      } : null,
+      ownership: unit.ownership ? {
+        units_purchased: unit.ownership.units_purchased,
+        size_purchased: unit.ownership.size_purchased,
+        purchase_amount: unit.ownership.purchase_amount,
+        purchase_date: unit.ownership.purchase_date,
+        is_relisted: unit.ownership.is_relisted,
+        relist_price: unit.ownership.relist_price
+      } : null,
+      createdAt: unit.createdAt,
+      updatedAt: unit.updatedAt
+    }));
+
+    // Calculate summary statistics
+    const totalUnits = units.length;
+    const totalValue = units.reduce((sum, unit) => sum + parseFloat(unit.price || 0), 0);
+    const totalSize = units.reduce((sum, unit) => sum + parseFloat(unit.size_of_unit || 0), 0);
+    const uniqueFarms = new Set(units.map(u => u.farm?.id)).size;
+
+    res.status(200).json({
+      success: true,
+      investor: {
+        id: investor.id,
+        name: investor.user?.name || 'Unknown',
+        email: investor.user?.email || 'N/A',
+        contactNumber: investor.user?.contactNumber || 'N/A'
+      },
+      summary: {
+        totalUnits,
+        totalValue,
+        totalSize,
+        totalFarms: uniqueFarms
+      },
+      units
+    });
+
+  } catch (error) {
+    console.error('Error fetching investor units:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch your units',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Get units owned by a specific investor (for admin)
+exports.getInvestorUnitsById = async (req, res) => {
+  try {
+    const { investorId } = req.params;
+
+    const investor = await Investor.findByPk(investorId, {
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'name', 'email', 'contactNumber']
+      }]
+    });
+
+    if (!investor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Investor not found'
+      });
+    }
+
+    const userId = investor.user_id;
+
+    // Find all units owned by this user
+    const ownedUnits = await FarmUnit.findAll({
+      where: {
+        current_owner_id: userId,
+        status: 'sold'
+      },
+      include: [
+        {
+          model: Farm,
+          as: 'farm',
+          attributes: [
+            'id', 
+            'name', 
+            'location', 
+            'address',
+            'image_url',
+            'total_farm_size',
+            'farm_manager'
+          ]
+        },
+        {
+          model: User,
+          as: 'currentOwner',
+          attributes: ['id', 'name', 'email', 'contactNumber']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    // Get ownership records
+    const unitsWithOwnership = await Promise.all(ownedUnits.map(async (unit) => {
+      const ownership = await FarmUnitOwnership.findOne({
+        where: {
+          farm_unit_id: unit.id,
+          user_id: userId
+        },
+        attributes: [
+          'id',
+          'units_purchased',
+          'size_purchased',
+          'purchase_amount',
+          'purchase_date',
+          'is_relisted',
+          'relist_price',
+          'createdAt'
+        ],
+        order: [['purchase_date', 'DESC']]
+      });
+
+      return {
+        ...unit.toJSON(),
+        ownership: ownership ? ownership.toJSON() : null
+      };
+    }));
+
+    // Format the response
+    const units = unitsWithOwnership.map(unit => ({
+      id: unit.id,
+      unit_number: unit.unit_number,
+      size_of_unit: unit.size_of_unit,
+      price: unit.price,
+      crop_type: unit.crop_type,
+      crop_description: unit.crop_description,
+      soil_type: unit.soil_type,
+      image_url: unit.image_url,
+      gps_coordinates: unit.gps_coordinates,
+      irrigation_method: unit.irrigation_method,
+      delivery_region: unit.delivery_region,
+      status: unit.status,
+      expected_yield_per_unit_kg: unit.expected_yield_per_unit_kg,
+      expected_value_per_kg: unit.expected_value_per_kg,
+      planting_date: unit.planting_date,
+      expected_harvest_date: unit.expected_harvest_date,
+      harvest_cycle_months: unit.harvest_cycle_months,
+      farm: unit.farm ? {
+        id: unit.farm.id,
+        name: unit.farm.name,
+        location: unit.farm.location,
+        address: unit.farm.address,
+        image_url: unit.farm.image_url,
+        total_farm_size: unit.farm.total_farm_size,
+        farm_manager: unit.farm.farm_manager
+      } : null,
+      ownership: unit.ownership ? {
+        units_purchased: unit.ownership.units_purchased,
+        size_purchased: unit.ownership.size_purchased,
+        purchase_amount: unit.ownership.purchase_amount,
+        purchase_date: unit.ownership.purchase_date,
+        is_relisted: unit.ownership.is_relisted,
+        relist_price: unit.ownership.relist_price
+      } : null,
+      createdAt: unit.createdAt,
+      updatedAt: unit.updatedAt
+    }));
+
+    // Calculate summary statistics
+    const totalUnits = units.length;
+    const totalValue = units.reduce((sum, unit) => sum + parseFloat(unit.price || 0), 0);
+    const uniqueFarms = new Set(units.map(u => u.farm?.id)).size;
+
+    res.status(200).json({
+      success: true,
+      investor: {
+        id: investor.id,
+        name: investor.user?.name || 'Unknown',
+        email: investor.user?.email || 'N/A',
+        contactNumber: investor.user?.contactNumber || 'N/A'
+      },
+      summary: {
+        totalUnits,
+        totalValue,
+        totalFarms: uniqueFarms
+      },
+      units
+    });
+
+  } catch (error) {
+    console.error('Error fetching investor units by ID:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch investor units',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };

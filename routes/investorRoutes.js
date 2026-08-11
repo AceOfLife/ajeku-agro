@@ -58,4 +58,10 @@ router.post('/farms/:farmId/relist', authenticate, RelistController.relistFarm);
 router.post('/farms/:farmId/relist-units', authenticate, RelistController.relistFarmUnits);
 router.get('/farms/:farmId/relisted-units', RelistController.getRelistedFarmUnits);
 
+// Get units owned by the authenticated investor
+router.get('/my-units', authenticate, InvestorController.getMyUnits);
+
+// Get units owned by a specific investor (admin only)
+router.get('/investors/:investorId/units', authenticate, authorizeAdmin, InvestorController.getInvestorUnitsById);
+
 module.exports = router;
