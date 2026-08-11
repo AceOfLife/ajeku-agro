@@ -876,7 +876,6 @@ exports.getDashboardStats = async (req, res) => {
       success: true,
       data: {
         totalUnits,
-        totalFarms,
         totalInvestment,
         avgGrossYield: Math.round(avgGrossYield * 100) / 100,
         avgNetYield: Math.round(avgNetYield * 100) / 100,
