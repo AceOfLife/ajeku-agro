@@ -6,30 +6,79 @@ const { sendEmail } = require('../config/emailService');
 const { Op } = require('sequelize');
 
 exports.createUser = async (req, res) => {
-  const { name, email, password, role, referralSource } = req.body;
-
+  const t = await sequelize.transaction();
   try {
+    const { name, email, password, role, referralSource } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ 
+      where: { email },
+      transaction: t 
+    });
+
+    if (existingUser) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: 'Email already registered' 
+      });
+    }
+
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Create user
     const newUser = await User.create({
       name,
       email,
       password: hashedPassword,
       role: role || 'investor',
       referralSource,
-    });
+    }, { transaction: t });
 
-    const token = jwt.sign({ userId: newUser.id, role: newUser.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // ✅ CREATE INVESTOR RECORD IF ROLE IS INVESTOR
+    let investor = null;
+    if (newUser.role === 'investor') {
+      investor = await Investor.create({
+        user_id: newUser.id,
+        status: 'Unverified',
+        default_produce_preference: 'sell'
+      }, { transaction: t });
+    }
+
+    await t.commit();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: newUser.id, role: newUser.role, email: newUser.email }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '1h' }
+    );
+
+    // Prepare response
+    const userResponse = newUser.toJSON();
+    delete userResponse.password;
 
     res.status(201).json({
       message: 'User created successfully',
       token,
-      user: newUser,
+      expiresIn: 3600,
+      user: {
+        ...userResponse,
+        investor_id: investor?.id || null,
+        investor_status: investor?.status || null
+      }
     });
+
   } catch (error) {
-    res.status(400).json({ message: 'Error creating user', error });
+    await t.rollback();
+    console.error('Error creating user:', error);
+    res.status(400).json({ 
+      message: 'Error creating user', 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
   }
 };
+
 
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
