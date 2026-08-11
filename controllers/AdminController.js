@@ -1,4 +1,4 @@
-const { Farm, User, Transaction, FarmSalesGoal, FarmUnitOwnership } = require('../models');
+const { Farm, User, Transaction, FarmSalesGoal, FarmUnitOwnership, farmUnit } = require('../models');
 const bcryptjs = require('bcryptjs');
 const { uploadImagesToCloudinary } = require('../config/multerConfig');
 const { Op } = require('sequelize');
@@ -266,10 +266,14 @@ AdminController.getSalesGoalsProgress = async (req, res) => {
   }
 };
 
-// Get all sold units with details
+// Get all sold units with pagination and unit details
 AdminController.getSoldUnits = async (req, res) => {
   try {
-    const soldUnits = await Transaction.findAll({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Transaction.findAndCountAll({
       where: { 
         status: 'success' 
       },
@@ -292,16 +296,97 @@ AdminController.getSoldUnits = async (req, res) => {
         {
           model: Farm,
           as: 'farm',
-          attributes: ['id', 'name', 'location']
+          attributes: ['id', 'name', 'location'],
+          include: [
+            {
+              model: FarmUnit,
+              as: 'units',
+              attributes: [
+                'id',
+                'unit_number',
+                'size_of_unit',
+                'price',
+                'crop_type',
+                'crop_description',
+                'soil_type',
+                'image_url',
+                'gps_coordinates',
+                'irrigation_method',
+                'delivery_region',
+                'status',
+                'expected_yield_per_unit_kg',
+                'expected_value_per_kg'
+              ]
+            }
+          ]
         }
       ],
-      order: [['transaction_date', 'DESC']]
+      order: [['transaction_date', 'DESC']],
+      limit,
+      offset
+    });
+
+    // Calculate total units and revenue
+    const totalUnits = rows.reduce((sum, t) => sum + (parseFloat(t.units_purchased) || 0), 0);
+    const totalRevenue = rows.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
+
+    // Format the response to include unit details
+    const transactions = rows.map(transaction => {
+      const transactionData = transaction.toJSON();
+      
+      // Get unit details if available
+      let unitDetails = null;
+      if (transactionData.farm && transactionData.farm.units && transactionData.farm.units.length > 0) {
+        unitDetails = transactionData.farm.units.map(unit => ({
+          id: unit.id,
+          unit_number: unit.unit_number,
+          size_of_unit: unit.size_of_unit,
+          price: unit.price,
+          crop_type: unit.crop_type,
+          crop_description: unit.crop_description,
+          soil_type: unit.soil_type,
+          image_url: unit.image_url,
+          gps_coordinates: unit.gps_coordinates,
+          irrigation_method: unit.irrigation_method,
+          delivery_region: unit.delivery_region,
+          status: unit.status,
+          expected_yield_per_unit_kg: unit.expected_yield_per_unit_kg,
+          expected_value_per_kg: unit.expected_value_per_kg
+        }));
+      }
+
+      return {
+        id: transactionData.id,
+        price: transactionData.price,
+        units_purchased: transactionData.units_purchased,
+        payment_type: transactionData.payment_type,
+        transaction_date: transactionData.transaction_date,
+        reference: transactionData.reference,
+        createdAt: transactionData.createdAt,
+        user: transactionData.user,
+        farm: {
+          id: transactionData.farm?.id,
+          name: transactionData.farm?.name,
+          location: transactionData.farm?.location,
+          units: unitDetails
+        }
+      };
     });
 
     res.status(200).json({
       success: true,
-      count: soldUnits.length,
-      transactions: soldUnits
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        totalItems: count,
+        itemsPerPage: limit
+      },
+      summary: {
+        totalUnits: totalUnits,
+        totalRevenue: totalRevenue,
+        totalTransactions: count
+      },
+      transactions: transactions
     });
   } catch (error) {
     console.error('Error fetching sold units:', error);
