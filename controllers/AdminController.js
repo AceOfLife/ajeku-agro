@@ -1,4 +1,4 @@
-const { Farm, User, Transaction, FarmSalesGoal, FarmUnitOwnership, farmUnit } = require('../models');
+const { Farm, User, Transaction, FarmSalesGoal, FarmUnitOwnership, FarmUnit } = require('../models');
 const bcryptjs = require('bcryptjs');
 const { uploadImagesToCloudinary } = require('../config/multerConfig');
 const { Op } = require('sequelize');
@@ -266,7 +266,7 @@ AdminController.getSalesGoalsProgress = async (req, res) => {
   }
 };
 
-// Get all sold units with pagination and unit details
+// Get all sold units with unit details using FarmUnitOwnership
 AdminController.getSoldUnits = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -285,7 +285,9 @@ AdminController.getSoldUnits = async (req, res) => {
         'transaction_date',
         'reference',
         'createdAt',
-        'updatedAt'
+        'updatedAt',
+        'user_id',
+        'farm_id'
       ],
       include: [
         {
@@ -296,11 +298,15 @@ AdminController.getSoldUnits = async (req, res) => {
         {
           model: Farm,
           as: 'farm',
-          attributes: ['id', 'name', 'location'],
+          attributes: ['id', 'name', 'location', 'image_url']
+        },
+        {
+          model: FarmUnitOwnership,
+          as: 'unitOwnerships', // ← Include unit ownerships
           include: [
             {
               model: FarmUnit,
-              as: 'units',
+              as: 'farmUnit',
               attributes: [
                 'id',
                 'unit_number',
@@ -326,50 +332,47 @@ AdminController.getSoldUnits = async (req, res) => {
       offset
     });
 
-    // Calculate total units and revenue
-    const totalUnits = rows.reduce((sum, t) => sum + (parseFloat(t.units_purchased) || 0), 0);
-    const totalRevenue = rows.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
-
-    // Format the response to include unit details
+    // Format the response
     const transactions = rows.map(transaction => {
-      const transactionData = transaction.toJSON();
+      const t = transaction.toJSON();
       
-      // Get unit details if available
-      let unitDetails = null;
-      if (transactionData.farm && transactionData.farm.units && transactionData.farm.units.length > 0) {
-        unitDetails = transactionData.farm.units.map(unit => ({
-          id: unit.id,
-          unit_number: unit.unit_number,
-          size_of_unit: unit.size_of_unit,
-          price: unit.price,
-          crop_type: unit.crop_type,
-          crop_description: unit.crop_description,
-          soil_type: unit.soil_type,
-          image_url: unit.image_url,
-          gps_coordinates: unit.gps_coordinates,
-          irrigation_method: unit.irrigation_method,
-          delivery_region: unit.delivery_region,
-          status: unit.status,
-          expected_yield_per_unit_kg: unit.expected_yield_per_unit_kg,
-          expected_value_per_kg: unit.expected_value_per_kg
-        }));
-      }
+      // Get units from ownerships
+      const units = t.unitOwnerships?.map(ownership => ({
+        id: ownership.farmUnit?.id,
+        unit_number: ownership.farmUnit?.unit_number,
+        size_of_unit: ownership.farmUnit?.size_of_unit,
+        price: ownership.farmUnit?.price,
+        crop_type: ownership.farmUnit?.crop_type,
+        crop_description: ownership.farmUnit?.crop_description,
+        soil_type: ownership.farmUnit?.soil_type,
+        image_url: ownership.farmUnit?.image_url, // ← Unit image URL
+        gps_coordinates: ownership.farmUnit?.gps_coordinates,
+        irrigation_method: ownership.farmUnit?.irrigation_method,
+        delivery_region: ownership.farmUnit?.delivery_region,
+        status: ownership.farmUnit?.status,
+        expected_yield_per_unit_kg: ownership.farmUnit?.expected_yield_per_unit_kg,
+        expected_value_per_kg: ownership.farmUnit?.expected_value_per_kg,
+        units_purchased: ownership.units_purchased,
+        ownership_id: ownership.id
+      })) || [];
 
       return {
-        id: transactionData.id,
-        price: transactionData.price,
-        units_purchased: transactionData.units_purchased,
-        payment_type: transactionData.payment_type,
-        transaction_date: transactionData.transaction_date,
-        reference: transactionData.reference,
-        createdAt: transactionData.createdAt,
-        user: transactionData.user,
+        id: t.id,
+        price: t.price,
+        units_purchased: t.units_purchased,
+        payment_type: t.payment_type,
+        transaction_date: t.transaction_date,
+        reference: t.reference,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        user: t.user,
         farm: {
-          id: transactionData.farm?.id,
-          name: transactionData.farm?.name,
-          location: transactionData.farm?.location,
-          units: unitDetails
-        }
+          id: t.farm?.id,
+          name: t.farm?.name,
+          location: t.farm?.location,
+          image_url: t.farm?.image_url
+        },
+        units: units
       };
     });
 
@@ -381,11 +384,7 @@ AdminController.getSoldUnits = async (req, res) => {
         totalItems: count,
         itemsPerPage: limit
       },
-      summary: {
-        totalUnits: totalUnits,
-        totalRevenue: totalRevenue,
-        totalTransactions: count
-      },
+      count: transactions.length,
       transactions: transactions
     });
   } catch (error) {
