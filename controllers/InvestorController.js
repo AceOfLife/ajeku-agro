@@ -787,3 +787,111 @@ exports.getInvestorUnitsById = async (req, res) => {
   }
 };
 
+// Get investor dashboard stats
+exports.getDashboardStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get all units owned by this user
+    const ownedUnits = await FarmUnit.findAll({
+      where: {
+        current_owner_id: userId,
+        status: 'sold'
+      },
+      include: [
+        {
+          model: Farm,
+          as: 'farm',
+          attributes: ['id', 'name']
+        },
+        {
+          model: FarmUnitOwnership,
+          as: 'ownershipHistory',
+          where: { user_id: userId },
+          required: false,
+          attributes: [
+            'units_purchased',
+            'purchase_amount',
+            'purchase_date'
+          ],
+          order: [['purchase_date', 'DESC']],
+          limit: 1
+        }
+      ]
+    });
+
+    // Calculate Total Units
+    const totalUnits = ownedUnits.length;
+
+    // Calculate Total Investment Value
+    const totalInvestment = ownedUnits.reduce((sum, unit) => {
+      const ownership = unit.ownershipHistory?.[0];
+      return sum + (ownership ? parseFloat(ownership.purchase_amount || 0) : parseFloat(unit.price || 0));
+    }, 0);
+
+    // Calculate Avg Gross Yield (based on expected yield per unit)
+    let avgGrossYield = 0;
+    let unitsWithYield = 0;
+    
+    ownedUnits.forEach(unit => {
+      const yieldPerUnit = parseFloat(unit.expected_yield_per_unit_kg || 0);
+      const valuePerKg = parseFloat(unit.expected_value_per_kg || 0);
+      const price = parseFloat(unit.price || 1);
+      
+      if (yieldPerUnit > 0 && valuePerKg > 0 && price > 0) {
+        const grossYield = (yieldPerUnit * valuePerKg) / price;
+        avgGrossYield += grossYield;
+        unitsWithYield++;
+      }
+    });
+    
+    avgGrossYield = unitsWithYield > 0 ? (avgGrossYield / unitsWithYield) * 100 : 0;
+
+    // Calculate Avg Net Yield (assuming 15% platform fee and operational costs)
+    const avgNetYield = avgGrossYield * 0.85; // 15% deduction for fees/costs
+
+    // Calculate Project Cashflow (monthly projection)
+    let projectedMonthlyCashflow = 0;
+    let totalMonthlyYield = 0;
+    
+    ownedUnits.forEach(unit => {
+      const yieldPerUnit = parseFloat(unit.expected_yield_per_unit_kg || 0);
+      const valuePerKg = parseFloat(unit.expected_value_per_kg || 0);
+      const months = parseInt(unit.harvest_cycle_months || 1);
+      
+      if (yieldPerUnit > 0 && valuePerKg > 0 && months > 0) {
+        const totalYield = yieldPerUnit * valuePerKg;
+        const monthlyYield = totalYield / months;
+        totalMonthlyYield += monthlyYield;
+      }
+    });
+    
+    projectedMonthlyCashflow = totalMonthlyYield * 0.85; // After fees
+
+    // Get invested farms
+    const farmIds = [...new Set(ownedUnits.map(u => u.farm_id))];
+    const totalFarms = farmIds.length;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalUnits,
+        totalFarms,
+        totalInvestment,
+        avgGrossYield: Math.round(avgGrossYield * 100) / 100,
+        avgNetYield: Math.round(avgNetYield * 100) / 100,
+        projectedMonthlyCashflow: Math.round(projectedMonthlyCashflow * 100) / 100,
+        projectedAnnualCashflow: Math.round(projectedMonthlyCashflow * 12 * 100) / 100
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch dashboard stats',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+

@@ -63,5 +63,7 @@ router.get('/my-units', authenticate, InvestorController.getMyUnits);
 
 // Get units owned by a specific investor (admin only)
 router.get('/investors/:investorId/units', authenticate, authorizeAdmin, InvestorController.getInvestorUnitsById);
+// Dashboard Stats
+router.get('/dashboard-stats', authenticate, InvestorController.getDashboardStats);
 
 module.exports = router;
