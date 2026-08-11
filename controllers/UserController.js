@@ -6,18 +6,15 @@ const { sendEmail } = require('../config/emailService');
 const { Op } = require('sequelize');
 
 exports.createUser = async (req, res) => {
-  const t = await sequelize.transaction();
   try {
     const { name, email, password, role, referralSource } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ 
-      where: { email },
-      transaction: t 
+      where: { email }
     });
 
     if (existingUser) {
-      await t.rollback();
       return res.status(400).json({ 
         message: 'Email already registered' 
       });
@@ -33,48 +30,27 @@ exports.createUser = async (req, res) => {
       password: hashedPassword,
       role: role || 'investor',
       referralSource,
-    }, { transaction: t });
-
-    console.log('✅ User created:', newUser.id);
+    });
 
     // ✅ CREATE INVESTOR RECORD IF ROLE IS INVESTOR
     let investor = null;
     if (newUser.role === 'investor') {
-      try {
-        investor = await Investor.create({
-          user_id: newUser.id,
-          status: 'Unverified',
-          default_produce_preference: 'sell'
-        }, { transaction: t });
-        console.log('✅ Investor created for user:', newUser.id);
-      } catch (investorError) {
-        console.error('❌ Failed to create investor:', investorError);
-        // Don't rollback - user is created, we can create investor later
-      }
+      investor = await Investor.create({
+        user_id: newUser.id,
+        status: 'Verified',
+        default_produce_preference: 'sell'
+      });
     }
 
-    await t.commit();
-
-    // If investor creation failed but we didn't rollback, try creating it outside transaction
-    if (!investor && newUser.role === 'investor') {
-      try {
-        investor = await Investor.create({
-          user_id: newUser.id,
-          status: 'Unverified',
-          default_produce_preference: 'sell'
-        });
-        console.log('✅ Investor created outside transaction for user:', newUser.id);
-      } catch (err) {
-        console.error('❌ Failed to create investor outside transaction:', err);
-      }
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
+    // Generate tokens
+    const accessToken = jwt.sign(
       { id: newUser.id, role: newUser.role, email: newUser.email }, 
       process.env.JWT_SECRET, 
       { expiresIn: '1h' }
     );
+
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    await newUser.update({ refresh_token: refreshToken });
 
     // Prepare response
     const userResponse = newUser.toJSON();
@@ -82,8 +58,8 @@ exports.createUser = async (req, res) => {
 
     res.status(201).json({
       message: 'User created successfully',
-      accessToken: token,
-      refreshToken: crypto.randomBytes(64).toString('hex'),
+      accessToken,
+      refreshToken,
       expiresIn: 3600,
       user: {
         ...userResponse,
@@ -93,8 +69,7 @@ exports.createUser = async (req, res) => {
     });
 
   } catch (error) {
-    await t.rollback();
-    console.error('❌ Error creating user:', error);
+    console.error('Error creating user:', error);
     res.status(400).json({ 
       message: 'Error creating user', 
       error: process.env.NODE_ENV === 'development' ? error.message : undefined 
