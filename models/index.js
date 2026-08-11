@@ -9,7 +9,7 @@ const basename = path.basename(__filename);
 const db = {};
 
 // ===== USE THE SAME CONFIG THAT WORKED IN TEST-SERVER =====
-const DATABASE_URL = 'postgresql://ajeku_agro_28ie_user:Lz33s2Yw32NpZ6F7oTWYYDf8DVcWcNas@dpg-d99mqlbtqb8s73aqm0og-a.oregon-postgres.render.com/ajeku_agro_28ie';
+const DATABASE_URL = 'postgresql://ajeku_agro_zsrn_user:HSZc1aZHD4PO8ow1hBcKxmyEkO9Ulr8F@dpg-d9ti84favr4c73btb1g0-a.ohio-postgres.render.com/ajeku_agro_zsrn';
 
 console.log('=== DATABASE CONNECTION ===');
 
