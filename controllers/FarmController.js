@@ -204,12 +204,26 @@ exports.createFarm = async (req, res) => {
 
             const newFarm = await Farm.create(newFarmData);
 
-            // ... rest of the code (images, response)
-            
+            // ===== HANDLE IMAGES =====
+            let savedImageRecord = null;
+            if (req.files && req.files.length > 0) {
+                try {
+                    const imageUrls = req.files.map(file => file.path);
+                    
+                    savedImageRecord = await FarmImage.create({
+                        farm_id: newFarm.id,
+                        image_url: imageUrls
+                    });
+                } catch (imageError) {
+                    console.error('Error saving farm images:', imageError);
+                }
+            }
+
+            // ===== RESPONSE =====
             res.status(201).json({
                 success: true,
                 message: 'Farm created successfully',
-                farm: newFarm,
+                farm: newFarm,  // ← FIXED: Changed from 'farm' to 'newFarm'
                 images: savedImageRecord?.image_url || [],
                 documentUrl: null
             });
