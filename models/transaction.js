@@ -86,12 +86,6 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'harvest_cycle_id',
       as: 'harvestCycle'
     });
-    
-    // ✅ Association with FarmUnitOwnership
-    Transaction.hasMany(models.FarmUnitOwnership, {
-      foreignKey: 'transaction_id',
-      as: 'unitOwnerships'
-    });
   };
 
   return Transaction;
