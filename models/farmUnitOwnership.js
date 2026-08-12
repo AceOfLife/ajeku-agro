@@ -30,14 +30,6 @@ module.exports = (sequelize, DataTypes) => {
           key: 'id',
         },
       },
-      transaction_id: {  // ✅ ADD THIS: Link to transaction
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        references: {
-          model: 'Transactions',
-          key: 'id',
-        },
-      },
       units_purchased: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
@@ -96,7 +88,7 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'farm_unit_ownership_id',
         as: 'producePreferences',
       });
-    };
+    }; //transaction_id removed
   
     return FarmUnitOwnership;
 };
