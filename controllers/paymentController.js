@@ -228,19 +228,22 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "Transaction reference is required" });
     }
 
-    const existingTransaction = await Transaction.findOne({ 
+    // ✅ Check if transaction exists
+    let transaction = await Transaction.findOne({ 
       where: { reference },
       transaction: t
     });
     
-    if (existingTransaction) {
+    // ✅ If transaction exists and is already successful, return it
+    if (transaction && transaction.status === 'success') {
       await t.commit();
       return res.status(200).json({
         message: "Payment already verified",
-        transaction: existingTransaction
+        transaction: transaction
       });
     }
 
+    // ✅ Verify with Paystack
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -257,7 +260,7 @@ exports.verifyPayment = async (req, res) => {
       });
     }
 
-    // Extract metadata - now expects single unit_id
+    // Extract metadata
     const { user_id, farm_id, unit_id, payment_type } = paymentData.metadata || {};
 
     if (!unit_id) {
@@ -265,33 +268,50 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: "No unit ID found in payment metadata" });
     }
 
-    // Create transaction record
-    const transaction = await Transaction.create({
-      user_id,
-      farm_id,
-      reference,
-      price: paymentData.amount / 100,
-      status: paymentData.status,
-      transaction_date: new Date(paymentData.transaction_date),
-      payment_type: payment_type || 'farm_unit'
-    }, { transaction: t });
-
-    // Purchase the single unit
-    const unit = await FarmUnit.findByPk(unit_id, { transaction: t });
-    if (!unit || unit.status !== 'available') {
-      await t.rollback();
-      return res.status(400).json({ message: `Unit ${unit_id} is no longer available` });
+    // ✅ If transaction exists but is pending, update it
+    if (transaction && transaction.status === 'pending') {
+      // Update transaction to success
+      await transaction.update({
+        status: 'success',
+        transaction_date: new Date(paymentData.transaction_date || Date.now())
+      }, { transaction: t });
+    } else {
+      // ✅ If no transaction exists, create one (shouldn't happen normally)
+      transaction = await Transaction.create({
+        user_id,
+        farm_id,
+        reference,
+        price: paymentData.amount / 100,
+        status: 'success',
+        transaction_date: new Date(paymentData.transaction_date || Date.now()),
+        payment_type: payment_type || 'farm_unit'
+      }, { transaction: t });
     }
 
+    // ✅ Mark unit as sold
+    const unit = await FarmUnit.findByPk(unit_id, { transaction: t });
+    if (!unit) {
+      await t.rollback();
+      return res.status(404).json({ message: `Unit ${unit_id} not found` });
+    }
+
+    if (unit.status !== 'available') {
+      await t.rollback();
+      return res.status(400).json({ message: `Unit ${unit.unit_number} is no longer available` });
+    }
+
+    // ✅ Create ownership record
     const ownership = await FarmUnitOwnership.create({
       farm_unit_id: unit_id,
       farm_id: farm_id,
       user_id: user_id,
       units_purchased: 1,
       size_purchased: parseFloat(unit.size_of_unit) || 0,
+      purchase_amount: paymentData.amount / 100,
       purchase_date: new Date()
     }, { transaction: t });
 
+    // ✅ Update unit status
     await unit.update({
       status: 'sold',
       current_owner_id: user_id
@@ -299,16 +319,18 @@ exports.verifyPayment = async (req, res) => {
 
     await t.commit();
 
+    // ✅ Send notification
     const io = req.app.get('socketio');
     const notification = await Notification.create({
       user_id: user_id,
       title: 'Unit Purchase Successful',
-      message: `You have successfully purchased unit ${unit.unit_number}`,
+      message: `You have successfully purchased unit ${unit.unit_number} for ₦${(paymentData.amount / 100).toLocaleString()}`,
       type: 'payment',
       related_entity_id: farm_id,
       metadata: {
         unit_id: unit_id,
-        unit_number: unit.unit_number
+        unit_number: unit.unit_number,
+        amount: paymentData.amount / 100
       }
     });
 
@@ -321,7 +343,7 @@ exports.verifyPayment = async (req, res) => {
 
     res.status(200).json({
       message: 'Payment verified successfully',
-      transaction,
+      transaction: transaction,
       unit_purchased: ownership,
       unit: unit
     });
@@ -329,7 +351,10 @@ exports.verifyPayment = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error("Payment Verification Error:", error);
-    res.status(500).json({ message: "Error verifying payment", error });
+    res.status(500).json({ 
+      message: "Error verifying payment", 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
   }
 };
 
