@@ -482,7 +482,7 @@ exports.updateDeliveryStatus = async (req, res) => {
 
 exports.updateProducePreference = async (req, res) => {
   try {
-    const { investor_id, farm_id, harvest_cycle_id, preference, delivery_address, delivery_region } = req.body;
+    const { investor_id, farm_id, harvest_cycle_id, farm_unit_ownership_id, preference, delivery_address, delivery_region } = req.body;
     const userId = req.user.id;
 
     const investor = await Investor.findOne({

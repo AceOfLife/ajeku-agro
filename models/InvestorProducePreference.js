@@ -37,6 +37,16 @@ module.exports = (sequelize, DataTypes) => {
       },
       comment: 'NULL means this is the default preference for future cycles',
     },
+    // ✅ ADD THIS: Link to the specific unit ownership
+    farm_unit_ownership_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'FarmUnitOwnerships',
+        key: 'id',
+      },
+      comment: 'Link to specific unit ownership for this preference',
+    },
     preference: {
       type: DataTypes.ENUM('sell', 'take_physical'),
       allowNull: false,
@@ -92,6 +102,11 @@ module.exports = (sequelize, DataTypes) => {
     InvestorProducePreference.belongsTo(models.HarvestCycle, {
       foreignKey: 'harvest_cycle_id',
       as: 'harvestCycle',
+    });
+    
+    InvestorProducePreference.belongsTo(models.FarmUnitOwnership, {
+      foreignKey: 'farm_unit_ownership_id',
+      as: 'farmUnitOwnership',
     });
   };
 
