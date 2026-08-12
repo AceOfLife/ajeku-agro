@@ -204,18 +204,22 @@ exports.createFarm = async (req, res) => {
 
             const newFarm = await Farm.create(newFarmData);
 
-            // ===== HANDLE IMAGES =====
+            // ===== HANDLE IMAGES - UPLOAD TO CLOUDINARY =====
             let savedImageRecord = null;
             if (req.files && req.files.length > 0) {
                 try {
-                    const imageUrls = req.files.map(file => file.path);
+                    // ✅ Upload images to Cloudinary using the imported function
+                    const uploadedImages = await uploadImagesToCloudinary(req.files);
                     
+                    // uploadedImages is an array of Cloudinary URLs
                     savedImageRecord = await FarmImage.create({
                         farm_id: newFarm.id,
-                        image_url: imageUrls
+                        image_url: uploadedImages  // Store the Cloudinary URLs
                     });
+                    
+                    console.log(`✅ Uploaded ${uploadedImages.length} images for farm ${newFarm.id}`);
                 } catch (imageError) {
-                    console.error('Error saving farm images:', imageError);
+                    console.error('Error uploading/saving farm images:', imageError);
                 }
             }
 
@@ -223,7 +227,7 @@ exports.createFarm = async (req, res) => {
             res.status(201).json({
                 success: true,
                 message: 'Farm created successfully',
-                farm: newFarm,  // ← FIXED: Changed from 'farm' to 'newFarm'
+                farm: newFarm,
                 images: savedImageRecord?.image_url || [],
                 documentUrl: null
             });
