@@ -92,10 +92,6 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'farm_unit_id',
         as: 'farmUnit' 
       });
-      FarmUnitOwnership.belongsTo(models.Transaction, { 
-        foreignKey: 'transaction_id',
-        as: 'transaction' 
-      });
       FarmUnitOwnership.hasMany(models.InvestorProducePreference, {
         foreignKey: 'farm_unit_ownership_id',
         as: 'producePreferences',
