@@ -298,7 +298,7 @@ AdminController.getSoldUnits = async (req, res) => {
         {
           model: Farm,
           as: 'farm',
-          attributes: ['id', 'name', 'location', 'image_url'],
+          attributes: ['id', 'name', 'location'],  // ← Only farm basic info
           include: [
             {
               model: FarmUnit,
@@ -311,13 +311,14 @@ AdminController.getSoldUnits = async (req, res) => {
                 'crop_type',
                 'crop_description',
                 'soil_type',
-                'image_url',
+                'image_url',  // ← Unit image URL
                 'gps_coordinates',
                 'irrigation_method',
                 'delivery_region',
                 'status',
                 'expected_yield_per_unit_kg',
-                'expected_value_per_kg'
+                'expected_value_per_kg',
+                'current_owner_id'
               ]
             }
           ]
@@ -328,7 +329,7 @@ AdminController.getSoldUnits = async (req, res) => {
       offset
     });
 
-    // Format the response
+    // Format the response - focus on units
     const transactions = rows.map(transaction => {
       const t = transaction.toJSON();
       
@@ -340,42 +341,44 @@ AdminController.getSoldUnits = async (req, res) => {
         unit.status === 'sold' && unit.current_owner_id === t.user_id
       );
 
+      // Return unit-focused data
       return {
-        id: t.id,
-        price: t.price,
-        units_purchased: t.units_purchased,
-        payment_type: t.payment_type,
-        transaction_date: t.transaction_date,
-        reference: t.reference,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
+        transaction: {
+          id: t.id,
+          price: t.price,
+          payment_type: t.payment_type,
+          transaction_date: t.transaction_date,
+          reference: t.reference
+        },
         user: t.user,
         farm: {
           id: t.farm?.id,
           name: t.farm?.name,
-          location: t.farm?.location,
-          image_url: t.farm?.image_url,
-          units: soldUnits.map(unit => ({
-            id: unit.id,
-            unit_number: unit.unit_number,
-            size_of_unit: unit.size_of_unit,
-            price: unit.price,
-            crop_type: unit.crop_type,
-            crop_description: unit.crop_description,
-            soil_type: unit.soil_type,
-            image_url: unit.image_url,  // ← Unit image URL
-            gps_coordinates: unit.gps_coordinates,
-            irrigation_method: unit.irrigation_method,
-            delivery_region: unit.delivery_region,
-            status: unit.status,
-            expected_yield_per_unit_kg: unit.expected_yield_per_unit_kg,
-            expected_value_per_kg: unit.expected_value_per_kg
-          }))
-        }
+          location: t.farm?.location
+        },
+        units: soldUnits.map(unit => ({
+          id: unit.id,
+          unit_number: unit.unit_number,
+          size_of_unit: unit.size_of_unit,
+          price: unit.price,
+          crop_type: unit.crop_type,
+          crop_description: unit.crop_description,
+          soil_type: unit.soil_type,
+          image_url: unit.image_url,  // ← Unit image URL
+          gps_coordinates: unit.gps_coordinates,
+          irrigation_method: unit.irrigation_method,
+          delivery_region: unit.delivery_region,
+          status: unit.status,
+          expected_yield_per_unit_kg: unit.expected_yield_per_unit_kg,
+          expected_value_per_kg: unit.expected_value_per_kg,
+          current_owner_id: unit.current_owner_id
+        }))
       };
     });
 
+    // Calculate totals
     const totalRevenue = rows.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0);
+    const totalUnits = transactions.reduce((sum, t) => sum + t.units.length, 0);
 
     res.status(200).json({
       success: true,
@@ -387,10 +390,11 @@ AdminController.getSoldUnits = async (req, res) => {
       },
       summary: {
         totalRevenue: totalRevenue,
-        totalTransactions: count
+        totalTransactions: count,
+        totalUnits: totalUnits
       },
       count: transactions.length,
-      transactions: transactions
+      data: transactions
     });
   } catch (error) {
     console.error('Error fetching sold units:', error);
