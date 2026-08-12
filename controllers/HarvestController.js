@@ -230,7 +230,7 @@ exports.allocateHarvest = async (req, res) => {
       return res.status(400).json({ message: 'Harvest must be recorded before allocation' });
     }
 
-    // Get all farm unit ownerships
+    // Get all farm unit ownerships with user info
     const ownerships = await FarmUnitOwnership.findAll({
       where: { farm_id: harvestCycle.farm_id }
     });
@@ -239,6 +239,19 @@ exports.allocateHarvest = async (req, res) => {
       await t.rollback();
       return res.status(400).json({ message: 'No investors found for this farm' });
     }
+
+    // ✅ Get all investors for these users
+    const userIds = ownerships.map(o => o.user_id);
+    const investors = await Investor.findAll({
+      where: { user_id: userIds },
+      attributes: ['id', 'user_id']
+    });
+
+    // Create a map of user_id -> investor_id
+    const investorMap = {};
+    investors.forEach(inv => {
+      investorMap[inv.user_id] = inv.id;
+    });
 
     // Calculate total units
     const totalUnits = ownerships.reduce((sum, o) => sum + parseFloat(o.units_purchased || 0), 0);
@@ -257,8 +270,18 @@ exports.allocateHarvest = async (req, res) => {
     });
 
     const allocations = [];
+    let skippedCount = 0;
+
     for (const ownership of ownerships) {
-      const investorId = ownership.user_id;
+      // ✅ Get the investor ID from the map
+      const investorId = investorMap[ownership.user_id];
+      
+      if (!investorId) {
+        console.log(`⚠️ No investor record found for user ${ownership.user_id}, skipping...`);
+        skippedCount++;
+        continue;
+      }
+
       const unitsOwned = parseFloat(ownership.units_purchased || 0);
       const percentage = totalUnits > 0 ? (unitsOwned / totalUnits) : 0;
       const allocatedKg = harvestCycle.actual_yield_kg * percentage;
@@ -267,13 +290,20 @@ exports.allocateHarvest = async (req, res) => {
 
       const allocation = await HarvestAllocation.create({
         harvest_cycle_id: harvestCycleId,
-        investor_id: investorId,
+        investor_id: investorId,  // ✅ Now this is the correct Investor ID
         farm_unit_ownership_id: ownership.id,
         preference_used: preference,
         allocated_kg: allocatedKg
       }, { transaction: t });
 
       allocations.push(allocation);
+    }
+
+    if (allocations.length === 0) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: `No valid investors found for allocation. ${skippedCount} users skipped due to missing investor records.` 
+      });
     }
 
     await harvestCycle.update({ status: 'distributing' }, { transaction: t });
@@ -285,6 +315,7 @@ exports.allocateHarvest = async (req, res) => {
       message: 'Harvest allocated successfully',
       data: {
         totalInvestors: allocations.length,
+        skippedInvestors: skippedCount,
         allocations
       }
     });
@@ -381,18 +412,19 @@ exports.getMyHarvestAllocation = async (req, res) => {
     const { harvestCycleId } = req.params;
     const userId = req.user.id;
 
+    // ✅ Find investor by user_id
     const investor = await Investor.findOne({
       where: { user_id: userId }
     });
 
     if (!investor) {
-      return res.status(404).json({ message: 'Investor not found' });
+      return res.status(404).json({ message: 'Investor profile not found' });
     }
 
     const allocation = await HarvestAllocation.findOne({
       where: {
         harvest_cycle_id: harvestCycleId,
-        investor_id: investor.id
+        investor_id: investor.id  // ✅ Use investor.id, not user_id
       },
       include: [
         {
@@ -519,6 +551,7 @@ exports.updateProducePreference = async (req, res) => {
         investor_id,
         farm_id,
         harvest_cycle_id: harvest_cycle_id || null,
+        farm_unit_ownership_id: farm_unit_ownership_id || null,  // ✅ ADD THIS
         preference,
         delivery_address: preference === 'take_physical' ? delivery_address : null,
         delivery_region: preference === 'take_physical' ? delivery_region : null,
@@ -528,6 +561,7 @@ exports.updateProducePreference = async (req, res) => {
 
     if (!created) {
       preferenceRecord.preference = preference;
+      preferenceRecord.farm_unit_ownership_id = farm_unit_ownership_id || null;  // ✅ ADD THIS
       preferenceRecord.delivery_address = preference === 'take_physical' ? delivery_address : null;
       preferenceRecord.delivery_region = preference === 'take_physical' ? delivery_region : null;
       await preferenceRecord.save();
@@ -542,7 +576,8 @@ exports.updateProducePreference = async (req, res) => {
       related_entity_id: farm_id,
       metadata: {
         preference,
-        harvest_cycle_id
+        harvest_cycle_id,
+        farm_unit_ownership_id
       }
     });
 
