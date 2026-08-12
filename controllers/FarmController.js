@@ -355,9 +355,14 @@ exports.getAllFarms = async (req, res) => {
             ]
         });
 
+        // ✅ Explicitly exclude transaction_id from both queries
         const [allInstallmentOwnerships, allFractionalOwnerships] = await Promise.all([
-            FarmInstallmentOwnership.findAll(),
-            FarmUnitOwnership.findAll()
+            FarmInstallmentOwnership.findAll({
+                attributes: { exclude: ['transaction_id'] }
+            }),
+            FarmUnitOwnership.findAll({
+                attributes: { exclude: ['transaction_id'] }  // ← KEY FIX
+            })
         ]);
 
         const installmentOwnershipMap = {};
@@ -448,7 +453,8 @@ exports.getFarmById = async (req, res) => {
 
         if (parsedUserId) {
             const installmentOwnership = await FarmInstallmentOwnership.findOne({
-                where: { user_id: parsedUserId, farm_id: parsedFarmId }
+                where: { user_id: parsedUserId, farm_id: parsedFarmId },
+                attributes: { exclude: ['transaction_id'] }  // ← Add this
             });
 
             if (installmentOwnership) {
@@ -462,7 +468,8 @@ exports.getFarmById = async (req, res) => {
 
             if (farm.is_fractional) {
                 const fractionalOwnership = await FarmUnitOwnership.findOne({
-                    where: { user_id: parsedUserId, farm_id: parsedFarmId }
+                    where: { user_id: parsedUserId, farm_id: parsedFarmId },
+                    attributes: { exclude: ['transaction_id'] }  // ← Add this
                 });
                 if (fractionalOwnership) {
                     userUnitsOwned = fractionalOwnership.units_purchased;
@@ -472,7 +479,8 @@ exports.getFarmById = async (req, res) => {
 
         if (!parsedUserId && farm.isInstallment && !farm.is_fractional) {
             const ownerships = await FarmInstallmentOwnership.findAll({
-                where: { farm_id: parsedFarmId }
+                where: { farm_id: parsedFarmId },
+                attributes: { exclude: ['transaction_id'] }  // ← Add this
             });
 
             const totalOwnerships = ownerships.length;
@@ -490,7 +498,8 @@ exports.getFarmById = async (req, res) => {
         let fractionalProgress = null;
         if (farm.is_fractional) {
             const fractionalOwnerships = await FarmUnitOwnership.findAll({
-                where: { farm_id: farm.id }
+                where: { farm_id: farm.id },
+                attributes: { exclude: ['transaction_id'] }  // ← Add this
             });
 
             const totalPurchased = fractionalOwnerships.reduce((sum, o) => sum + parseFloat(o.units_purchased || 0), 0);

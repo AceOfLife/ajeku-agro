@@ -88,7 +88,7 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'farm_unit_ownership_id',
         as: 'producePreferences',
       });
-    }; //transaction_id removed
+    }; 
   
     return FarmUnitOwnership;
 };
