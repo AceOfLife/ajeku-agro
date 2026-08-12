@@ -1,4 +1,4 @@
-// controllers/FarmController.js - UPDATED createFarm, getFarmById, getAllFarms, getFilteredFarms, getUserFarms, getRecentFarms, getMostViewedFarms, getAssemblage, getRelistedFarms
+// controllers/FarmController.js - UPDATED 
 
 const { Farm, User, FarmImage, FarmUnitOwnership, FarmInstallmentOwnership, Transaction, FarmUnit, sequelize } = require('../models');
 const path = require('path');
@@ -209,7 +209,7 @@ exports.createFarm = async (req, res) => {
             res.status(201).json({
                 success: true,
                 message: 'Farm created successfully',
-                farm: farm,
+                farm: newFarm,
                 images: savedImageRecord?.image_url || [],
                 documentUrl: null
             });
