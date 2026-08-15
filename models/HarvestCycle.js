@@ -1,12 +1,21 @@
 // models/HarvestCycle.js
-'use strict';
-
 module.exports = (sequelize, DataTypes) => {
   const HarvestCycle = sequelize.define('HarvestCycle', {
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true,
+    },
+    // ✅ ADD THIS: Link to specific unit
+    farm_unit_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'FarmUnits',
+        key: 'id',
+      },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
     },
     farm_id: {
       type: DataTypes.INTEGER,
@@ -21,7 +30,7 @@ module.exports = (sequelize, DataTypes) => {
     cycle_number: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      comment: '1st, 2nd, 3rd harvest for this farm',
+      comment: 'Harvest cycle number for this unit (1, 2, 3...)',
     },
     harvest_date: {
       type: DataTypes.DATEONLY,
@@ -30,31 +39,23 @@ module.exports = (sequelize, DataTypes) => {
     preference_lock_date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
-      comment: 'Investors cannot change produce preference after this date',
     },
-    // Harvest results (filled after harvest)
+    status: {
+      type: DataTypes.ENUM('upcoming', 'preferences_locked', 'harvested', 'distributing', 'completed'),
+      defaultValue: 'upcoming',
+    },
     actual_yield_kg: {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
-      comment: 'Total actual harvest in kilograms',
     },
     actual_market_price_per_kg: {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
-      comment: 'Market price at harvest time',
     },
     platform_fee_percentage: {
       type: DataTypes.DECIMAL(5, 2),
-      allowNull: true,
-      comment: 'Percentage deducted from sell proceeds',
+      defaultValue: 10.00,
     },
-    // Status tracking
-    status: {
-      type: DataTypes.ENUM('upcoming', 'preferences_locked', 'harvested', 'distributing', 'completed'),
-      defaultValue: 'upcoming',
-      allowNull: false,
-    },
-    // Timestamps
     createdAt: {
       allowNull: false,
       type: DataTypes.DATE,
@@ -65,6 +66,13 @@ module.exports = (sequelize, DataTypes) => {
     },
   }, {
     tableName: 'HarvestCycles',
+    indexes: [
+      {
+        unique: true,
+        fields: ['farm_unit_id', 'cycle_number'],
+        name: 'unique_unit_cycle',
+      },
+    ],
   });
 
   HarvestCycle.associate = function(models) {
@@ -72,13 +80,13 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'farm_id',
       as: 'farm',
     });
+    HarvestCycle.belongsTo(models.FarmUnit, {
+      foreignKey: 'farm_unit_id',
+      as: 'unit',  
+    });
     HarvestCycle.hasMany(models.HarvestAllocation, {
       foreignKey: 'harvest_cycle_id',
       as: 'allocations',
-    });
-    HarvestCycle.hasMany(models.InvestorProducePreference, {
-      foreignKey: 'harvest_cycle_id',
-      as: 'producePreferences',
     });
   };
 

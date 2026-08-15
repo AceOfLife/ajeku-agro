@@ -10,14 +10,31 @@ exports.getHarvestCyclesByFarm = async (req, res) => {
       return res.status(404).json({ message: 'Farm not found' });
     }
 
-    const harvestCycles = await HarvestCycle.findAll({
+    // ✅ Get all units for this farm with their harvest cycles
+    const units = await FarmUnit.findAll({
       where: { farm_id: farmId },
-      order: [['harvest_date', 'DESC']]
+      include: [
+        {
+          model: HarvestCycle,
+          as: 'harvestCycles',
+          order: [['harvest_date', 'DESC']]
+        }
+      ]
     });
 
     res.status(200).json({
       success: true,
-      data: harvestCycles
+      farm: {
+        id: farm.id,
+        name: farm.name,
+        location: farm.location
+      },
+      units: units.map(unit => ({
+        id: unit.id,
+        unit_number: unit.unit_number,
+        crop_type: unit.crop_type,
+        harvest_cycles: unit.harvestCycles || []
+      }))
     });
   } catch (error) {
     console.error('Error fetching harvest cycles:', error);
@@ -66,25 +83,69 @@ exports.getHarvestCycleById = async (req, res) => {
 exports.createHarvestCycle = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { farm_id, harvest_date, preference_lock_date, cycle_number } = req.body;
+    const { farm_unit_id, harvest_date, preference_lock_date, cycle_number } = req.body;
 
-    const farm = await Farm.findByPk(farm_id);
-    if (!farm) {
+    // ✅ Validate input
+    if (!farm_unit_id) {
       await t.rollback();
-      return res.status(404).json({ message: 'Farm not found' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'farm_unit_id is required' 
+      });
     }
 
+    if (!harvest_date) {
+      await t.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'harvest_date is required' 
+      });
+    }
+
+    if (!preference_lock_date) {
+      await t.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'preference_lock_date is required' 
+      });
+    }
+
+    if (!cycle_number) {
+      await t.rollback();
+      return res.status(400).json({ 
+        success: false,
+        message: 'cycle_number is required' 
+      });
+    }
+
+    // ✅ Check if unit exists
+    const unit = await FarmUnit.findByPk(farm_unit_id);
+    
+    if (!unit) {
+      await t.rollback();
+      return res.status(404).json({ 
+        success: false,
+        message: `Farm unit with ID ${farm_unit_id} not found` 
+      });
+    }
+
+    // ✅ Check if cycle already exists for this unit
     const existingCycle = await HarvestCycle.findOne({
-      where: { farm_id, cycle_number }
+      where: { farm_unit_id, cycle_number }
     });
 
     if (existingCycle) {
       await t.rollback();
-      return res.status(400).json({ message: 'Cycle number already exists for this farm' });
+      return res.status(400).json({ 
+        success: false,
+        message: `Cycle number ${cycle_number} already exists for this unit` 
+      });
     }
 
+    // ✅ Create harvest cycle for the unit
     const harvestCycle = await HarvestCycle.create({
-      farm_id,
+      farm_unit_id: farm_unit_id,
+      farm_id: unit.farm_id,  // ✅ Comes directly from FarmUnit
       harvest_date,
       preference_lock_date,
       cycle_number,
@@ -95,13 +156,32 @@ exports.createHarvestCycle = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Harvest cycle created successfully',
-      data: harvestCycle
+      message: 'Harvest cycle created successfully for unit',
+      data: {
+        id: harvestCycle.id,
+        farm_unit_id: harvestCycle.farm_unit_id,
+        farm_id: harvestCycle.farm_id,
+        cycle_number: harvestCycle.cycle_number,
+        harvest_date: harvestCycle.harvest_date,
+        preference_lock_date: harvestCycle.preference_lock_date,
+        status: harvestCycle.status,
+        unit: {
+          id: unit.id,
+          unit_number: unit.unit_number,
+          crop_type: unit.crop_type,
+          farm_id: unit.farm_id
+        }
+      }
     });
+
   } catch (error) {
     await t.rollback();
     console.error('Error creating harvest cycle:', error);
-    res.status(500).json({ message: 'Error creating harvest cycle', error });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error creating harvest cycle',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
   }
 };
 
@@ -217,7 +297,10 @@ exports.allocateHarvest = async (req, res) => {
     const { harvestCycleId } = req.params;
 
     const harvestCycle = await HarvestCycle.findByPk(harvestCycleId, {
-      include: [{ model: Farm, as: 'farm' }]
+      include: [
+        { model: Farm, as: 'farm' },
+        { model: FarmUnit, as: 'unit' }  // ✅ Include the unit
+      ]
     });
 
     if (!harvestCycle) {
@@ -230,14 +313,16 @@ exports.allocateHarvest = async (req, res) => {
       return res.status(400).json({ message: 'Harvest must be recorded before allocation' });
     }
 
-    // Get all farm unit ownerships with user info
+    // ✅ Get ownership for THIS SPECIFIC UNIT
     const ownerships = await FarmUnitOwnership.findAll({
-      where: { farm_id: harvestCycle.farm_id }
+      where: { 
+        farm_unit_id: harvestCycle.farm_unit_id  // ✅ Use unit ID, not farm ID
+      }
     });
 
     if (ownerships.length === 0) {
       await t.rollback();
-      return res.status(400).json({ message: 'No investors found for this farm' });
+      return res.status(400).json({ message: 'No investors found for this unit' });
     }
 
     // ✅ Get all investors for these users
@@ -247,7 +332,6 @@ exports.allocateHarvest = async (req, res) => {
       attributes: ['id', 'user_id']
     });
 
-    // Create a map of user_id -> investor_id
     const investorMap = {};
     investors.forEach(inv => {
       investorMap[inv.user_id] = inv.id;
@@ -256,10 +340,10 @@ exports.allocateHarvest = async (req, res) => {
     // Calculate total units
     const totalUnits = ownerships.reduce((sum, o) => sum + parseFloat(o.units_purchased || 0), 0);
 
-    // Get investor preferences for this harvest cycle
+    // ✅ Get investor preferences for this harvest cycle
     const preferences = await InvestorProducePreference.findAll({
       where: { 
-        farm_id: harvestCycle.farm_id,
+        farm_unit_ownership_id: ownerships.map(o => o.id),  // ✅ Match by ownership ID
         harvest_cycle_id: harvestCycleId
       }
     });
@@ -273,7 +357,6 @@ exports.allocateHarvest = async (req, res) => {
     let skippedCount = 0;
 
     for (const ownership of ownerships) {
-      // ✅ Get the investor ID from the map
       const investorId = investorMap[ownership.user_id];
       
       if (!investorId) {
@@ -290,7 +373,7 @@ exports.allocateHarvest = async (req, res) => {
 
       const allocation = await HarvestAllocation.create({
         harvest_cycle_id: harvestCycleId,
-        investor_id: investorId,  // ✅ Now this is the correct Investor ID
+        investor_id: investorId,
         farm_unit_ownership_id: ownership.id,
         preference_used: preference,
         allocated_kg: allocatedKg
@@ -302,7 +385,7 @@ exports.allocateHarvest = async (req, res) => {
     if (allocations.length === 0) {
       await t.rollback();
       return res.status(400).json({ 
-        message: `No valid investors found for allocation. ${skippedCount} users skipped due to missing investor records.` 
+        message: `No valid investors found for allocation. ${skippedCount} users skipped.` 
       });
     }
 
@@ -314,6 +397,11 @@ exports.allocateHarvest = async (req, res) => {
       success: true,
       message: 'Harvest allocated successfully',
       data: {
+        unit: {
+          id: harvestCycle.unit.id,
+          unit_number: harvestCycle.unit.unit_number,
+          crop_type: harvestCycle.unit.crop_type
+        },
         totalInvestors: allocations.length,
         skippedInvestors: skippedCount,
         allocations
@@ -596,5 +684,51 @@ exports.updateProducePreference = async (req, res) => {
   } catch (error) {
     console.error('Error updating produce preference:', error);
     res.status(500).json({ message: 'Error updating produce preference', error });
+  }
+};
+
+// Get harvest cycles for a specific unit
+exports.getHarvestCyclesByUnit = async (req, res) => {
+  try {
+    const { farmUnitId } = req.params;
+    
+    const unit = await FarmUnit.findByPk(farmUnitId, {
+      include: [{ model: Farm, as: 'farm' }]
+    });
+    
+    if (!unit) {
+      return res.status(404).json({ message: 'Farm unit not found' });
+    }
+
+    const harvestCycles = await HarvestCycle.findAll({
+      where: { farm_unit_id: farmUnitId },
+      include: [
+        {
+          model: Farm,
+          as: 'farm',
+          attributes: ['id', 'name', 'location']
+        },
+        {
+          model: FarmUnit,
+          as: 'unit',
+          attributes: ['id', 'unit_number', 'crop_type', 'image_url']
+        }
+      ],
+      order: [['harvest_date', 'DESC']]
+    });
+
+    res.status(200).json({
+      success: true,
+      unit: {
+        id: unit.id,
+        unit_number: unit.unit_number,
+        crop_type: unit.crop_type,
+        farm_name: unit.farm?.name
+      },
+      data: harvestCycles
+    });
+  } catch (error) {
+    console.error('Error fetching harvest cycles:', error);
+    res.status(500).json({ message: 'Error fetching harvest cycles', error });
   }
 };
