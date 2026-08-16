@@ -16,7 +16,7 @@ exports.getHarvestCyclesByFarm = async (req, res) => {
       include: [
         {
           model: HarvestCycle,
-          as: 'harvestCycles',
+          as: 'harvestCycles',  
           order: [['harvest_date', 'DESC']]
         }
       ]
@@ -33,6 +33,8 @@ exports.getHarvestCyclesByFarm = async (req, res) => {
         id: unit.id,
         unit_number: unit.unit_number,
         crop_type: unit.crop_type,
+        size_of_unit: unit.size_of_unit,
+        image_url: unit.image_url,
         harvest_cycles: unit.harvestCycles || []
       }))
     });
@@ -51,6 +53,11 @@ exports.getHarvestCycleById = async (req, res) => {
         {
           model: Farm,
           as: 'farm'
+        },
+        {
+          model: FarmUnit,
+          as: 'unit',  // ✅ This must match the alias in HarvestCycle.associate
+          attributes: ['id', 'unit_number', 'crop_type', 'image_url']
         },
         {
           model: HarvestAllocation,

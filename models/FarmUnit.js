@@ -163,7 +163,12 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'farm_unit_id',
       as: 'ownershipHistory',
     });
+    FarmUnit.hasMany(models.HarvestCycle, {
+    foreignKey: 'farm_unit_id',
+    as: 'harvestCycles',  
+  });
   };
+  
 
   return FarmUnit;
 };
