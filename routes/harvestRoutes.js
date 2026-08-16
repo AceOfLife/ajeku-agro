@@ -5,6 +5,8 @@ const { authenticate, authorizeAdmin } = require('../middlewares/authMiddleware'
 
 // Get all harvest cycles for a farm
 router.get('/farm/:farmId', authenticate, HarvestController.getHarvestCyclesByFarm);
+//Get harvest cycles by units
+router.get('/unit/:farmUnitId', authenticate, HarvestController.getHarvestCyclesByUnit);
 
 // NEW: Produce preference routes
 router.put('/produce-preference', authenticate, HarvestController.updateProducePreference);
