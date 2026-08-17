@@ -192,79 +192,34 @@ exports.createHarvestCycle = async (req, res) => {
   }
 };
 
-exports.updateProducePreference = async (req, res) => {
+exports.updateHarvestCycle = async (req, res) => {
   try {
-    const { 
-      farm_id, 
-      harvest_cycle_id, 
-      farm_unit_ownership_id, 
-      preference, 
-      delivery_address, 
-      delivery_region 
-    } = req.body;
-    
-    const userId = req.user.id;
+    const { harvestCycleId } = req.params;
+    const { harvest_date, preference_lock_date, platform_fee_percentage } = req.body;
 
-    // ✅ FIND INVESTOR BY USER ID (NOT FROM REQUEST BODY)
-    const investor = await Investor.findOne({
-      where: { user_id: userId }
+    const harvestCycle = await HarvestCycle.findByPk(harvestCycleId);
+    if (!harvestCycle) {
+      return res.status(404).json({ message: 'Harvest cycle not found' });
+    }
+
+    if (harvestCycle.status === 'harvested' || harvestCycle.status === 'distributing' || harvestCycle.status === 'completed') {
+      return res.status(400).json({ message: 'Cannot update harvest cycle after harvest has been recorded' });
+    }
+
+    await harvestCycle.update({
+      harvest_date: harvest_date || harvestCycle.harvest_date,
+      preference_lock_date: preference_lock_date || harvestCycle.preference_lock_date,
+      platform_fee_percentage: platform_fee_percentage || harvestCycle.platform_fee_percentage
     });
 
-    if (!investor) {
-      return res.status(404).json({ 
-        message: 'Investor profile not found' 
-      });
-    }
-
-    // ✅ USE THE INVESTOR ID FROM THE DATABASE
-    const investor_id = investor.id;
-
-    if (harvest_cycle_id) {
-      const harvestCycle = await HarvestCycle.findByPk(harvest_cycle_id);
-      if (!harvestCycle) {
-        return res.status(404).json({ message: 'Harvest cycle not found' });
-      }
-
-      const now = new Date();
-      const lockDate = new Date(harvestCycle.preference_lock_date);
-      
-      if (now >= lockDate) {
-        return res.status(400).json({ 
-          message: 'Preference lock date has passed. Cannot change preference for this harvest cycle.' 
-        });
-      }
-    }
-
-    const [preferenceRecord, created] = await InvestorProducePreference.findOrCreate({
-      where: {
-        investor_id,  // ✅ Use the investor_id from the database
-        farm_id,
-        harvest_cycle_id: harvest_cycle_id || null
-      },
-      defaults: {
-        investor_id,
-        farm_id,
-        harvest_cycle_id: harvest_cycle_id || null,
-        farm_unit_ownership_id: farm_unit_ownership_id || null,
-        preference,
-        delivery_address: preference === 'take_physical' ? delivery_address : null,
-        delivery_region: preference === 'take_physical' ? delivery_region : null,
-        is_locked: false
-      }
+    res.status(200).json({
+      success: true,
+      message: 'Harvest cycle updated successfully',
+      data: harvestCycle
     });
-
-    if (!created) {
-      preferenceRecord.preference = preference;
-      preferenceRecord.farm_unit_ownership_id = farm_unit_ownership_id || null;
-      preferenceRecord.delivery_address = preference === 'take_physical' ? delivery_address : null;
-      preferenceRecord.delivery_region = preference === 'take_physical' ? delivery_region : null;
-      await preferenceRecord.save();
-    }
-
-    // ... rest of the code
   } catch (error) {
-    console.error('Error updating produce preference:', error);
-    res.status(500).json({ message: 'Error updating produce preference', error });
+    console.error('Error updating harvest cycle:', error);
+    res.status(500).json({ message: 'Error updating harvest cycle', error });
   }
 };
 
@@ -654,16 +609,30 @@ exports.updateDeliveryStatus = async (req, res) => {
 
 exports.updateProducePreference = async (req, res) => {
   try {
-    const { investor_id, farm_id, harvest_cycle_id, farm_unit_ownership_id, preference, delivery_address, delivery_region } = req.body;
+    const { 
+      farm_id, 
+      harvest_cycle_id, 
+      farm_unit_ownership_id, 
+      preference, 
+      delivery_address, 
+      delivery_region 
+    } = req.body;
+    
     const userId = req.user.id;
 
+    // ✅ FIND INVESTOR BY USER ID (NOT FROM REQUEST BODY)
     const investor = await Investor.findOne({
-      where: { user_id: userId, id: investor_id }
+      where: { user_id: userId }
     });
 
     if (!investor) {
-      return res.status(404).json({ message: 'Investor not found' });
+      return res.status(404).json({ 
+        message: 'Investor profile not found' 
+      });
     }
+
+    // ✅ USE THE INVESTOR ID FROM THE DATABASE
+    const investor_id = investor.id;
 
     if (harvest_cycle_id) {
       const harvestCycle = await HarvestCycle.findByPk(harvest_cycle_id);
@@ -683,7 +652,7 @@ exports.updateProducePreference = async (req, res) => {
 
     const [preferenceRecord, created] = await InvestorProducePreference.findOrCreate({
       where: {
-        investor_id,
+        investor_id,  // ✅ Use the investor_id from the database
         farm_id,
         harvest_cycle_id: harvest_cycle_id || null
       },
@@ -691,7 +660,7 @@ exports.updateProducePreference = async (req, res) => {
         investor_id,
         farm_id,
         harvest_cycle_id: harvest_cycle_id || null,
-        farm_unit_ownership_id: farm_unit_ownership_id || null,  // ✅ ADD THIS
+        farm_unit_ownership_id: farm_unit_ownership_id || null,
         preference,
         delivery_address: preference === 'take_physical' ? delivery_address : null,
         delivery_region: preference === 'take_physical' ? delivery_region : null,
@@ -701,38 +670,13 @@ exports.updateProducePreference = async (req, res) => {
 
     if (!created) {
       preferenceRecord.preference = preference;
-      preferenceRecord.farm_unit_ownership_id = farm_unit_ownership_id || null;  // ✅ ADD THIS
+      preferenceRecord.farm_unit_ownership_id = farm_unit_ownership_id || null;
       preferenceRecord.delivery_address = preference === 'take_physical' ? delivery_address : null;
       preferenceRecord.delivery_region = preference === 'take_physical' ? delivery_region : null;
       await preferenceRecord.save();
     }
 
-    const io = req.app.get('socketio');
-    const notification = await Notification.create({
-      user_id: userId,
-      title: 'Produce Preference Updated',
-      message: `Your produce preference has been updated to ${preference === 'sell' ? 'Sell Produce' : 'Take Physical Produce'}`,
-      type: 'produce_preference',
-      related_entity_id: farm_id,
-      metadata: {
-        preference,
-        harvest_cycle_id,
-        farm_unit_ownership_id
-      }
-    });
-
-    if (io) {
-      io.to(`user_${userId}`).emit('new_notification', {
-        event: 'preference_updated',
-        data: notification
-      });
-    }
-
-    res.status(200).json({
-      message: 'Produce preference updated successfully',
-      preference: preferenceRecord
-    });
-
+    // ... rest of the code
   } catch (error) {
     console.error('Error updating produce preference:', error);
     res.status(500).json({ message: 'Error updating produce preference', error });
