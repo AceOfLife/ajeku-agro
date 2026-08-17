@@ -652,7 +652,7 @@ exports.updateProducePreference = async (req, res) => {
 
     const [preferenceRecord, created] = await InvestorProducePreference.findOrCreate({
       where: {
-        investor_id,  // ✅ Use the investor_id from the database
+        investor_id,
         farm_id,
         harvest_cycle_id: harvest_cycle_id || null
       },
@@ -676,10 +676,40 @@ exports.updateProducePreference = async (req, res) => {
       await preferenceRecord.save();
     }
 
-    // ... rest of the code
+    const io = req.app.get('socketio');
+    const notification = await Notification.create({
+      user_id: userId,
+      title: 'Produce Preference Updated',
+      message: `Your produce preference has been updated to ${preference === 'sell' ? 'Sell Produce' : 'Take Physical Produce'}`,
+      type: 'produce_preference',
+      related_entity_id: farm_id,
+      metadata: {
+        preference,
+        harvest_cycle_id,
+        farm_unit_ownership_id
+      }
+    });
+
+    if (io) {
+      io.to(`user_${userId}`).emit('new_notification', {
+        event: 'preference_updated',
+        data: notification
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Produce preference updated successfully',
+      preference: preferenceRecord
+    });
+
   } catch (error) {
     console.error('Error updating produce preference:', error);
-    res.status(500).json({ message: 'Error updating produce preference', error });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error updating produce preference',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
