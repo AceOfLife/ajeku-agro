@@ -607,6 +607,8 @@ exports.updateDeliveryStatus = async (req, res) => {
 
 // ===== PRODUCE PREFERENCE =====
 
+// ===== PRODUCE PREFERENCE =====
+
 exports.updateProducePreference = async (req, res) => {
   try {
     const { 
@@ -620,18 +622,22 @@ exports.updateProducePreference = async (req, res) => {
     
     const userId = req.user.id;
 
-    // ✅ FIND INVESTOR BY USER ID (NOT FROM REQUEST BODY)
-    const investor = await Investor.findOne({
+    // ✅ FIND OR CREATE INVESTOR BY USER ID
+    let investor = await Investor.findOne({
       where: { user_id: userId }
     });
 
+    // ✅ AUTO-CREATE INVESTOR IF NOT FOUND
     if (!investor) {
-      return res.status(404).json({ 
-        message: 'Investor profile not found' 
+      investor = await Investor.create({
+        user_id: userId,
+        status: 'Unverified',
+        default_produce_preference: 'sell'
       });
+      
+      console.log(`✅ Auto-created investor for user ${userId}`);
     }
 
-    // ✅ USE THE INVESTOR ID FROM THE DATABASE
     const investor_id = investor.id;
 
     if (harvest_cycle_id) {
@@ -700,7 +706,8 @@ exports.updateProducePreference = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Produce preference updated successfully',
-      preference: preferenceRecord
+      preference: preferenceRecord,
+      investor_created: !created  // Let frontend know if investor was auto-created
     });
 
   } catch (error) {
