@@ -913,16 +913,17 @@ exports.getDashboardStats = async (req, res) => {
 
     const expectedYield = expectedProduce;
 
-    // ✅ Fixed: Allocated, Pending, Ready, Delivered Produce
+    // ✅ DECLARE OUTSIDE THE IF BLOCK
     let allocatedProduce = 0;
     let pendingAllocation = 0;
     let readyProduce = 0;
     let deliveredProduce = 0;
+    let harvestAllocations = [];  // ← Declare here
 
     if (investor) {
-      const harvestAllocations = await HarvestAllocation.findAll({
+      harvestAllocations = await HarvestAllocation.findAll({
         where: {
-          investor_id: investor.id,  // ✅ Use investor.id, not userId
+          investor_id: investor.id,
           allocated_kg: { [Op.gt]: 0 }
         },
         include: [
@@ -950,7 +951,7 @@ exports.getDashboardStats = async (req, res) => {
       });
     }
 
-    if (harvestAllocations?.length === 0 && expectedProduce > 0) {
+    if (harvestAllocations.length === 0 && expectedProduce > 0) {
       pendingAllocation = expectedProduce;
     }
 
