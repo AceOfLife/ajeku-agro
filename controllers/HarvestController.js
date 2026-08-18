@@ -376,7 +376,7 @@ exports.allocateHarvest = async (req, res) => {
       const percentage = totalUnits > 0 ? (unitsOwned / totalUnits) : 0;
       const allocatedKg = harvestCycle.actual_yield_kg * percentage;
 
-      const preference = preferenceMap[investorId] || 'sell';
+      const preference = preferenceMap[investorId] || 'doorstep-delivery';
 
       const allocation = await HarvestAllocation.create({
         harvest_cycle_id: harvestCycleId,
@@ -441,9 +441,9 @@ exports.distributeHarvest = async (req, res) => {
       where: { harvest_cycle_id: harvestCycleId }
     });
 
-    // Process sell preferences (calculate payouts)
+    // Process doorstep delivery preferences (calculate payouts)
     for (const allocation of allocations) {
-      if (allocation.preference_used === 'sell') {
+      if (allocation.preference_used === 'doorstep-delivery') {
         const grossPayout = allocation.allocated_kg * harvestCycle.actual_market_price_per_kg;
         const fee = grossPayout * (harvestCycle.platform_fee_percentage / 100);
         const netPayout = grossPayout - fee;
@@ -466,7 +466,7 @@ exports.distributeHarvest = async (req, res) => {
       message: 'Harvest distributed successfully',
       data: {
         totalAllocations: allocations.length,
-        sellAllocations: allocations.filter(a => a.preference_used === 'sell').length,
+        deliverAllocations: allocations.filter(a => a.preference_used === 'doorstep-delivery').length,
         takeAllocations: allocations.filter(a => a.preference_used === 'take_physical').length
       }
     });
@@ -622,17 +622,17 @@ exports.updateProducePreference = async (req, res) => {
     
     const userId = req.user.id;
 
-    // ✅ FIND OR CREATE INVESTOR BY USER ID
+    // FIND OR CREATE INVESTOR BY USER ID
     let investor = await Investor.findOne({
       where: { user_id: userId }
     });
 
-    // ✅ AUTO-CREATE INVESTOR IF NOT FOUND
+    // AUTO-CREATE INVESTOR IF NOT FOUND
     if (!investor) {
       investor = await Investor.create({
         user_id: userId,
         status: 'Unverified',
-        default_produce_preference: 'sell'
+        default_produce_preference: 'doorstep-delivery'
       });
       
       console.log(`✅ Auto-created investor for user ${userId}`);
@@ -686,7 +686,7 @@ exports.updateProducePreference = async (req, res) => {
     const notification = await Notification.create({
       user_id: userId,
       title: 'Produce Preference Updated',
-      message: `Your produce preference has been updated to ${preference === 'sell' ? 'Sell Produce' : 'Take Physical Produce'}`,
+      message: `Your produce preference has been updated to ${preference === 'doorstep-delivery' ? 'Doorstep Delivery' : 'Take Physical Produce'}`,
       type: 'produce_preference',
       related_entity_id: farm_id,
       metadata: {

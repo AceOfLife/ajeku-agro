@@ -41,7 +41,7 @@ exports.createUser = async (req, res) => {
       investor = await Investor.create({
         user_id: newUser.id,
         status: 'Unverified',
-        default_produce_preference: 'sell'
+        default_produce_preference: 'doorstep-delivery'
       }, { transaction: t });
     }
 

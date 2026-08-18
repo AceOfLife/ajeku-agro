@@ -794,6 +794,11 @@ exports.getDashboardStats = async (req, res) => {
     const userId = req.user.id;
     const now = new Date();
 
+    // ✅ Find investor
+    const investor = await Investor.findOne({
+      where: { user_id: userId }
+    });
+
     // Get all units owned by this user
     const ownedUnits = await FarmUnit.findAll({
       where: {
@@ -834,23 +839,17 @@ exports.getDashboardStats = async (req, res) => {
       const valuePerKg = parseFloat(unit.expected_value_per_kg || 0);
       const months = parseInt(unit.harvest_cycle_months || 1);
       
-      // Calculate expected total yield value
       const expectedValue = yieldPerUnit * valuePerKg;
       
-      // Calculate ROI (Return on Investment)
       let roi = 0;
       if (purchasePrice > 0) {
         roi = ((expectedValue - purchasePrice) / purchasePrice) * 100;
       }
 
-      // Calculate yield efficiency (kg per unit)
       const size = parseFloat(unit.size_of_unit || 1);
       const yieldEfficiency = yieldPerUnit / size;
-
-      // Calculate monthly return
       const monthlyReturn = months > 0 ? expectedValue / months : 0;
 
-      // Days to harvest
       let daysToHarvest = null;
       if (unit.expected_harvest_date) {
         const harvestDate = new Date(unit.expected_harvest_date);
@@ -867,30 +866,29 @@ exports.getDashboardStats = async (req, res) => {
           yieldEfficiency,
           monthlyReturn,
           daysToHarvest,
-          yieldPerUnit,        // ← This is the Produce Yield
+          yieldPerUnit,
           valuePerKg,
           size
         }
       };
     });
 
-    // Find top performing unit (highest Produce Yield per unit)
+    // Find top performing unit
     unitsWithMetrics.forEach(({ unit, metrics }) => {
-      // Use yieldPerUnit as the metric for top performer
       if (metrics.yieldPerUnit > highestYield) {
         highestYield = metrics.yieldPerUnit;
         topPerformingUnit = { unit, metrics };
       }
     });
 
-    // 1. Total Farms Invested
+    // Total Farms Invested
     const farmIds = [...new Set(ownedUnits.map(u => u.farm_id))];
     const totalFarmsInvested = farmIds.length;
 
-    // 2. Total Units Owned
+    // Total Units Owned
     const totalUnitsOwned = ownedUnits.length;
 
-    // 3. Expected Produce (kg)
+    // Expected Produce (kg)
     let expectedProduce = 0;
     ownedUnits.forEach(unit => {
       const yieldPerUnit = parseFloat(unit.expected_yield_per_unit_kg || 0);
@@ -898,7 +896,7 @@ exports.getDashboardStats = async (req, res) => {
       expectedProduce += yieldPerUnit * unitsPurchased;
     });
 
-    // 4. Next Harvest
+    // Next Harvest
     let nextHarvest = null;
     let nextHarvestUnit = null;
     ownedUnits.forEach(unit => {
@@ -913,49 +911,50 @@ exports.getDashboardStats = async (req, res) => {
       }
     });
 
-    // 5. Expected Yield (kg)
     const expectedYield = expectedProduce;
 
-    // 6-9. Allocated, Pending, Ready, Delivered Produce
-    const harvestAllocations = await HarvestAllocation.findAll({
-      where: {
-        investor_id: userId,
-        allocated_kg: { [Op.gt]: 0 }
-      },
-      include: [
-        {
-          model: HarvestCycle,
-          as: 'harvestCycle',
-          attributes: ['id', 'harvest_date', 'status', 'actual_yield_kg']
-        }
-      ]
-    });
-
+    // ✅ Fixed: Allocated, Pending, Ready, Delivered Produce
     let allocatedProduce = 0;
     let pendingAllocation = 0;
     let readyProduce = 0;
     let deliveredProduce = 0;
 
-    harvestAllocations.forEach(allocation => {
-      const allocated = parseFloat(allocation.allocated_kg || 0);
-      const status = allocation.harvestCycle?.status || 'upcoming';
-      
-      allocatedProduce += allocated;
+    if (investor) {
+      const harvestAllocations = await HarvestAllocation.findAll({
+        where: {
+          investor_id: investor.id,  // ✅ Use investor.id, not userId
+          allocated_kg: { [Op.gt]: 0 }
+        },
+        include: [
+          {
+            model: HarvestCycle,
+            as: 'harvestCycle',
+            attributes: ['id', 'harvest_date', 'status', 'actual_yield_kg']
+          }
+        ]
+      });
 
-      if (status === 'upcoming' || status === 'preferences_locked') {
-        pendingAllocation += allocated;
-      } else if (status === 'harvested' || status === 'distributing') {
-        readyProduce += allocated;
-      } else if (status === 'completed') {
-        deliveredProduce += allocated;
-      }
-    });
+      harvestAllocations.forEach(allocation => {
+        const allocated = parseFloat(allocation.allocated_kg || 0);
+        const status = allocation.harvestCycle?.status || 'upcoming';
+        
+        allocatedProduce += allocated;
 
-    if (harvestAllocations.length === 0 && expectedProduce > 0) {
+        if (status === 'upcoming' || status === 'preferences_locked') {
+          pendingAllocation += allocated;
+        } else if (status === 'harvested' || status === 'distributing') {
+          readyProduce += allocated;
+        } else if (status === 'completed') {
+          deliveredProduce += allocated;
+        }
+      });
+    }
+
+    if (harvestAllocations?.length === 0 && expectedProduce > 0) {
       pendingAllocation = expectedProduce;
     }
 
-    // 10. Upcoming Harvests (next 30 days)
+    // Upcoming Harvests (next 30 days)
     const thirtyDaysFromNow = new Date(now);
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
@@ -998,7 +997,6 @@ exports.getDashboardStats = async (req, res) => {
             farm_name: unit.farm?.name || 'Unknown'
           }))
         },
-        // ✅ Top Performing Unit by Highest Produce Yield
         topPerformingUnit: topPerformingUnit ? {
           id: topPerformingUnit.unit.id,
           unit_number: topPerformingUnit.unit.unit_number,

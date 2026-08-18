@@ -73,7 +73,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     default_produce_preference: {
       type: DataTypes.STRING,  // Changed from ENUM
-      defaultValue: 'sell',
+      defaultValue: 'doorstep-delivery',
     },
     refresh_token: {
       type: DataTypes.STRING,

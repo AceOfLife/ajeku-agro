@@ -24,8 +24,8 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     default_produce_preference: {
-      type: DataTypes.ENUM('sell', 'take_physical'),
-      defaultValue: 'sell',
+      type: DataTypes.ENUM('doorstep-delivery', 'take_physical'),
+      defaultValue: 'doorstep-delivery',
     },
   }, {
     tableName: 'Investors',  // was Clients

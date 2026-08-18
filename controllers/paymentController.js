@@ -430,7 +430,7 @@ exports.processHarvestPayout = async (req, res) => {
 
     const results = [];
     for (const allocation of allocations) {
-      if (allocation.preference_used === 'sell') {
+      if (allocation.preference_used === 'doorstep-delivery') {
         allocation.payout_status = 'processing';
         await allocation.save();
         results.push({
@@ -457,7 +457,7 @@ exports.processHarvestPayout = async (req, res) => {
       const notification = await Notification.create({
         user_id: allocation.investor_id,
         title: 'Harvest Payout Processing',
-        message: allocation.preference_used === 'sell' 
+        message: allocation.preference_used === 'doorstep-delivery' 
           ? `Your harvest payout of ${allocation.net_payout} is being processed`
           : `Your harvest allocation of ${allocation.allocated_kg}kg is being dispatched`,
         type: 'harvest',
@@ -544,7 +544,7 @@ exports.updateProducePreference = async (req, res) => {
     const notification = await Notification.create({
       user_id: userId,
       title: 'Produce Preference Updated',
-      message: `Your produce preference has been updated to ${preference === 'sell' ? 'Sell Produce' : 'Take Physical Produce'}`,
+      message: `Your produce preference has been updated to ${preference === 'doorstep-delivery' ? 'Doorstep Delivery' : 'Take Physical Produce'}`,
       type: 'produce_preference',
       related_entity_id: farm_id,
       metadata: {

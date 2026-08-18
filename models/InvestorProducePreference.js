@@ -48,7 +48,7 @@ module.exports = (sequelize, DataTypes) => {
       comment: 'Link to specific unit ownership for this preference',
     },
     preference: {
-      type: DataTypes.ENUM('sell', 'take_physical'),
+      type: DataTypes.ENUM('doorstep-delivery', 'take_physical'),
       allowNull: false,
     },
     // For 'take_physical' preference

@@ -37,7 +37,7 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     preference_used: {
-      type: DataTypes.ENUM('sell', 'take_physical'),
+      type: DataTypes.ENUM('doorstep-delivery', 'take_physical'),
       allowNull: false,
       comment: 'Which option the investor chose for this harvest',
     },
@@ -46,7 +46,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       comment: 'Kilograms allocated to this investor',
     },
-    // For 'sell' investors
+    // For 'doorstep-delivery' investors
     payout_amount: {
       type: DataTypes.DECIMAL(15, 2),
       allowNull: true,
