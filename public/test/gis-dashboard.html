@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title> Ajeku Agro - Complete GIS Dashboard</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <!-- Chart.js for NDVI charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        #map { height: 550px; width: 100%; border-radius: 8px; }
+        #ndvi-chart { height: 200px; width: 100%; }
+        
+        .health-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .health-excellent { background: #22c55e; color: white; }
+        .health-good { background: #84cc16; color: white; }
+        .health-moderate { background: #eab308; color: white; }
+        .health-poor { background: #f97316; color: white; }
+        .health-critical { background: #ef4444; color: white; }
+        
+        .unit-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .unit-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+        }
+        .unit-card.selected {
+            border: 2px solid #3b82f6;
+            background: #eff6ff;
+        }
+        
+        .ndvi-value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+        
+        .sidebar-scroll {
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+        .sidebar-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .popup-content {
+            min-width: 220px;
+        }
+        .popup-content .unit-preview {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto p-4">
+        <!-- ===== HEADER ===== -->
+        <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">🌍 GIS Dashboard</h1>
+                <p class="text-sm text-gray-500">Complete farm mapping with units and NDVI monitoring</p>
+            </div>
+            <div class="flex items-center gap-3 flex-wrap">
+                <span id="status-badge" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm flex items-center">
+                    <i class="fas fa-circle text-yellow-500 mr-1"></i> Connecting...
+                </span>
+                <button onclick="refreshData()" class="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm flex items-center gap-1">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button onclick="toggleLayer('satellite')" class="px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm flex items-center gap-1">
+                    <i class="fas fa-satellite"></i> Satellite
+                </button>
+                <button onclick="toggleLayer('ndvi')" class="px-3 py-1 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm flex items-center gap-1">
+                    <i class="fas fa-leaf"></i> NDVI
+                </button>
+            </div>
+        </div>
+
+        <!-- ===== MAIN GRID ===== -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+            <!-- ===== MAP ===== -->
+            <div class="lg:col-span-3 bg-white rounded-lg shadow-lg p-3">
+                <div id="map"></div>
+                <div class="flex justify-between mt-2 text-xs text-gray-500">
+                    <span>💡 Click a unit to view details</span>
+                    <span id="coords-display">📍 Click map for coordinates</span>
+                </div>
+            </div>
+
+            <!-- ===== SIDEBAR ===== -->
+            <div class="lg:col-span-1 bg-white rounded-lg shadow-lg p-4 sidebar-scroll">
+                <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <i class="fas fa-layer-group text-blue-500"></i>
+                    <span>Farm Explorer</span>
+                </h2>
+                
+                <!-- Farm Selector -->
+                <div class="mb-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Select Farm</label>
+                    <select id="farm-select" class="w-full border rounded-lg px-3 py-2 text-sm" onchange="loadFarmData()">
+                        <option value="">-- Loading farms --</option>
+                    </select>
+                </div>
+
+                <!-- Stats Summary -->
+                <div id="stats-summary" class="grid grid-cols-2 gap-2 mb-3">
+                    <div class="bg-gray-50 rounded-lg p-2 text-center">
+                        <p class="text-xs text-gray-500">Units</p>
+                        <p id="total-units" class="text-xl font-bold text-blue-600">0</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-2 text-center">
+                        <p class="text-xs text-gray-500">Avg NDVI</p>
+                        <p id="avg-ndvi" class="text-xl font-bold text-green-600">-</p>
+                    </div>
+                </div>
+
+                <!-- Unit List -->
+                <div id="unit-list" class="space-y-2">
+                    <p class="text-sm text-gray-400 text-center py-4">Select a farm to view units</p>
+                </div>
+
+                <!-- NDVI Chart -->
+                <div class="mt-4 pt-3 border-t">
+                    <p class="text-sm font-semibold mb-1">📈 NDVI History</p>
+                    <canvas id="ndvi-chart" height="150"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== FORM MODAL ===== -->
+        <div id="add-unit-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold">➕ Add Farm Unit</h3>
+                    <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form id="unit-form" class="space-y-3">
+                    <input type="hidden" id="unit-farm-id">
+                    <div>
+                        <label class="block text-sm font-medium">Unit Number *</label>
+                        <input type="text" id="unit-number" required class="w-full border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Size (hectares) *</label>
+                        <input type="number" id="unit-size" step="0.01" required class="w-full border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Price (₦) *</label>
+                        <input type="number" id="unit-price" step="0.01" required class="w-full border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Crop Type *</label>
+                        <input type="text" id="unit-crop" required class="w-full border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Crop Description</label>
+                        <input type="text" id="unit-crop-desc" class="w-full border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Planting Date</label>
+                        <input type="date" id="unit-planting-date" class="w-full border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Expected Harvest Date</label>
+                        <input type="date" id="unit-harvest-date" class="w-full border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Expected Yield (kg)</label>
+                        <input type="number" id="unit-yield" step="0.01" class="w-full border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Image URL</label>
+                        <input type="text" id="unit-image-url" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="https://..." />
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-sm font-medium">Latitude</label>
+                            <input type="number" id="unit-lat" step="any" class="w-full border rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium">Longitude</label>
+                            <input type="number" id="unit-lng" step="any" class="w-full border rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600">
+                        <i class="fas fa-plus mr-1"></i> Add Unit
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // ============================================================
+        // CONFIGURATION
+        // ============================================================
+        const API_BASE = window.location.origin;
+        let token = localStorage.getItem('adminToken') || '';
+        let selectedFarmId = null;
+        let selectedUnitId = null;
+        let map = null;
+        let ndviChart = null;
+        let farmsData = [];
+        let currentLayer = 'default'; // 'default' | 'satellite' | 'ndvi'
+
+        // ============================================================
+        // TOKEN MANAGEMENT
+        // ============================================================
+        if (!token) {
+            const input = prompt('🔑 Enter your admin token:');
+            if (input) { localStorage.setItem('adminToken', input); token = input; }
+        }
+
+        function updateStatus(type, message) {
+            const badge = document.getElementById('status-badge');
+            const configs = {
+                'loading': { icon: 'fa-circle text-yellow-500', bg: 'bg-yellow-100 text-yellow-800' },
+                'success': { icon: 'fa-check-circle text-green-500', bg: 'bg-green-100 text-green-800' },
+                'error': { icon: 'fa-times-circle text-red-500', bg: 'bg-red-100 text-red-800' },
+                'info': { icon: 'fa-info-circle text-blue-500', bg: 'bg-blue-100 text-blue-800' }
+            };
+            const config = configs[type] || configs.loading;
+            badge.className = `px-3 py-1 rounded-full text-sm ${config.bg}`;
+            badge.innerHTML = `<i class="fas ${config.icon} mr-1"></i> ${message}`;
+        }
+
+        // ============================================================
+        // MAP INITIALIZATION
+        // ============================================================
+        function initMap() {
+            map = L.map('map').setView([8.0, 4.5], 6);
+
+            // Base layers
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                id: 'osm'
+            });
+
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '&copy; Esri',
+                id: 'satellite'
+            });
+
+            // NDVI overlay (simulated for demo - will be replaced with actual NDVI tiles)
+            const ndviLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: 'NDVI Layer (Simulated)',
+                opacity: 0.6,
+                id: 'ndvi'
+            });
+
+            // Store layers
+            map.osmLayer = osmLayer;
+            map.satelliteLayer = satelliteLayer;
+            map.ndviLayer = ndviLayer;
+
+            osmLayer.addTo(map);
+
+            // Click handler
+            map.on('click', function(e) {
+                const lat = e.latlng.lat.toFixed(6);
+                const lng = e.latlng.lng.toFixed(6);
+                document.getElementById('coords-display').textContent = `📍 ${lat}, ${lng}`;
+                document.getElementById('unit-lat').value = lat;
+                document.getElementById('unit-lng').value = lng;
+            });
+
+            // Draw control for adding boundaries
+            const drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            const drawControl = new L.Control.Draw({
+                position: 'topleft',
+                draw: {
+                    polygon: {
+                        allowIntersection: false,
+                        showArea: true,
+                        shapeOptions: { color: '#3b82f6', weight: 2 }
+                    },
+                    rectangle: false,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    polyline: false
+                },
+                edit: {
+                    featureGroup: drawnItems,
+                    remove: true
+                }
+            });
+            map.addControl(drawControl);
+
+            map.on(L.Draw.Event.CREATED, function(event) {
+                const layer = event.layer;
+                const geoJSON = layer.toGeoJSON();
+                drawnItems.addLayer(layer);
+                console.log('Boundary created:', geoJSON);
+                // Save boundary to database
+                saveBoundary(geoJSON);
+            });
+
+            map.on(L.Draw.Event.DELETED, function() {
+                console.log('Boundary deleted');
+            });
+
+            // Load data
+            loadFarms();
+        }
+
+        // ============================================================
+        // LOAD FARMS
+        // ============================================================
+        async function loadFarms() {
+            try {
+                updateStatus('loading', 'Loading farms...');
+                const response = await axios.get(`${API_BASE}/api/gis/farms/complete`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.data.success) {
+                    farmsData = response.data.data;
+                    renderFarmSelector(farmsData);
+                    renderFarmsOnMap(farmsData);
+                    updateStats(farmsData);
+                    updateStatus('success', `✅ ${farmsData.features?.length || 0} farms loaded`);
+                }
+            } catch (error) {
+                console.error('Load farms error:', error);
+                updateStatus('error', '❌ Failed to load farms');
+                // If no farms exist yet, show empty state
+                document.getElementById('farm-select').innerHTML = '<option value="">No farms found</option>';
+            }
+        }
+
+        // ============================================================
+        // RENDER FARM SELECTOR
+        // ============================================================
+        function renderFarmSelector(data) {
+            const select = document.getElementById('farm-select');
+            const features = data.features || [];
+            
+            if (features.length === 0) {
+                select.innerHTML = '<option value="">No farms found</option>';
+                return;
+            }
+
+            let html = '<option value="">-- Select Farm --</option>';
+            features.forEach(f => {
+                const props = f.properties || {};
+                const unitsCount = props.units ? props.units.length : 0;
+                html += `<option value="${props.id}">${props.name} (${unitsCount} units)</option>`;
+            });
+            select.innerHTML = html;
+        }
+
+        // ============================================================
+        // RENDER FARMS ON MAP
+        // ============================================================
+        function renderFarmsOnMap(data) {
+            // Clear existing layers
+            if (window.farmLayer) {
+                map.removeLayer(window.farmLayer);
+            }
+            if (window.unitLayer) {
+                map.removeLayer(window.unitLayer);
+            }
+
+            const features = data.features || [];
+            
+            if (features.length === 0) {
+                updateStatus('info', 'ℹ️ No farms with GPS data found');
+                return;
+            }
+
+            // Farm polygons layer
+            const farmGeoJSON = {
+                type: 'FeatureCollection',
+                features: features.filter(f => f.geometry)
+            };
+
+            window.farmLayer = L.geoJSON(farmGeoJSON, {
+                style: function(feature) {
+                    return {
+                        color: '#3b82f6',
+                        weight: 2,
+                        fillColor: '#93c5fd',
+                        fillOpacity: 0.2
+                    };
+                },
+                onEachFeature: function(feature, layer) {
+                    const props = feature.properties || {};
+                    const units = props.units || [];
+                    const avgNDVI = units.length > 0 ? 
+                        (units.reduce((sum, u) => sum + parseFloat(u.ndvi_value || 0), 0) / units.length).toFixed(3) : 
+                        'N/A';
+                    
+                    let unitsHtml = units.map(u => 
+                        `<div class="text-sm">🔸 ${u.unit_number}: ${u.crop_type} (NDVI: ${u.ndvi_value || 'N/A'})</div>`
+                    ).join('');
+
+                    layer.bindPopup(`
+                        <div class="popup-content">
+                            <h3 class="font-bold text-lg">${props.name || 'Unnamed Farm'}</h3>
+                            <p class="text-sm text-gray-600">📍 ${props.location || 'N/A'}</p>
+                            <p class="text-sm">📏 ${props.total_farm_size || 'N/A'} ${props.measurement_unit || 'ha'}</p>
+                            <p class="text-sm">🌾 Units: ${units.length}</p>
+                            <p class="text-sm">📊 Avg NDVI: ${avgNDVI}</p>
+                            <div class="mt-2 max-h-40 overflow-y-auto">
+                                ${unitsHtml}
+                            </div>
+                            <button onclick="selectFarm(${props.id})" class="mt-2 bg-blue-500 text-white px-3 py-1 rounded text-sm w-full">
+                                View Details
+                            </button>
+                        </div>
+                    `);
+                }
+            }).addTo(map);
+
+            // Fit map to show all farms
+            if (features.length > 0) {
+                const bounds = L.geoJSON(farmGeoJSON).getBounds();
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+
+        // ============================================================
+        // SELECT FARM
+        // ============================================================
+        function selectFarm(farmId) {
+            document.getElementById('farm-select').value = farmId;
+            loadFarmData();
+        }
+
+        // ============================================================
+        // LOAD FARM DATA
+        // ============================================================
+        async function loadFarmData() {
+            const farmId = document.getElementById('farm-select').value;
+            if (!farmId) {
+                document.getElementById('unit-list').innerHTML = '<p class="text-sm text-gray-400 text-center py-4">Select a farm to view units</p>';
+                return;
+            }
+
+            selectedFarmId = farmId;
+            updateStatus('loading', 'Loading farm details...');
+
+            try {
+                const response = await axios.get(`${API_BASE}/api/gis/farms/${farmId}/complete`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.data.success) {
+                    const data = response.data.data;
+                    renderUnits(data);
+                    updateFarmStats(data);
+                    renderNDVIChart(data.units || []);
+                    updateStatus('success', `✅ ${data.units?.length || 0} units loaded`);
+                }
+            } catch (error) {
+                console.error('Load farm details error:', error);
+                updateStatus('error', '❌ Failed to load farm details');
+            }
+        }
+
+        // ============================================================
+        // RENDER UNITS
+        // ============================================================
+        function renderUnits(data) {
+            const container = document.getElementById('unit-list');
+            const units = data.units || [];
+
+            if (units.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-6">
+                        <p class="text-sm text-gray-400">No units found for this farm</p>
+                        <button onclick="openAddUnitModal(${data.farm.id})" class="mt-2 bg-blue-500 text-white px-3 py-1 rounded text-sm">
+                            <i class="fas fa-plus mr-1"></i> Add Unit
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            units.forEach(unit => {
+                const ndvi = unit.ndvi_value ? parseFloat(unit.ndvi_value).toFixed(3) : 'N/A';
+                const statusClass = unit.crop_health_status ? `health-${unit.crop_health_status}` : 'health-moderate';
+                const statusLabel = unit.crop_health_status ? 
+                    unit.crop_health_status.charAt(0).toUpperCase() + unit.crop_health_status.slice(1) : 
+                    'Unknown';
+
+                html += `
+                    <div class="unit-card bg-gray-50 rounded-lg p-3 border border-gray-200" onclick="selectUnit(${unit.id}, ${unit.latitude}, ${unit.longitude})">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-semibold text-sm">${unit.unit_number}</p>
+                                <p class="text-xs text-gray-500">${unit.crop_type || 'No crop'}</p>
+                            </div>
+                            <span class="health-badge ${statusClass}">${statusLabel}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 mt-1 text-xs text-gray-600">
+                            <span>📏 ${unit.size_of_unit || 'N/A'}</span>
+                            <span>💰 ₦${Number(unit.price || 0).toLocaleString()}</span>
+                            <span>🌾 ${unit.expected_yield_per_unit_kg || 'N/A'} kg</span>
+                            <span>📊 NDVI: ${ndvi}</span>
+                        </div>
+                        ${unit.image_url ? `<img src="${unit.image_url}" class="mt-1 rounded w-full h-12 object-cover" />` : ''}
+                    </div>
+                `;
+            });
+
+            // Add "Add Unit" button
+            html += `
+                <button onclick="openAddUnitModal(${data.farm.id})" class="w-full mt-2 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-blue-600 flex items-center justify-center gap-1">
+                    <i class="fas fa-plus"></i> Add Unit
+                </button>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // ============================================================
+        // SELECT UNIT
+        // ============================================================
+        function selectUnit(unitId, lat, lng) {
+            selectedUnitId = unitId;
+            
+            // Highlight selected unit in list
+            document.querySelectorAll('.unit-card').forEach(el => el.classList.remove('selected'));
+            const cards = document.querySelectorAll('.unit-card');
+            cards.forEach(el => {
+                if (el.textContent.includes(unitId)) {
+                    el.classList.add('selected');
+                }
+            });
+
+            // Zoom to unit on map
+            if (lat && lng) {
+                map.setView([lat, lng], 16);
+            }
+
+            // Load NDVI data for this unit
+            loadUnitNDVI(unitId);
+        }
+
+        // ============================================================
+        // LOAD UNIT NDVI
+        // ============================================================
+        async function loadUnitNDVI(unitId) {
+            try {
+                const response = await axios.get(`${API_BASE}/api/gis/units/${unitId}/ndvi`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.data.success) {
+                    const data = response.data.data;
+                    updateNDVIChart(data.history || []);
+                }
+            } catch (error) {
+                console.error('Load NDVI error:', error);
+            }
+        }
+
+        // ============================================================
+        // RENDER NDVI CHART
+        // ============================================================
+        function renderNDVIChart(units) {
+            // Show summary chart of all units
+            const labels = units.map(u => u.unit_number || 'Unit ' + u.id);
+            const ndviValues = units.map(u => parseFloat(u.ndvi_value || 0));
+
+            const ctx = document.getElementById('ndvi-chart').getContext('2d');
+            
+            if (ndviChart) {
+                ndviChart.destroy();
+            }
+
+            if (ndviValues.length === 0) {
+                // Show empty state
+                ndviChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['No Data'],
+                        datasets: [{
+                            label: 'NDVI',
+                            data: [0],
+                            backgroundColor: ['#cbd5e1'],
+                            borderColor: ['#94a3b8'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            title: {
+                                display: true,
+                                text: 'No NDVI data available'
+                            }
+                        }
+                    }
+                });
+                return;
+            }
+
+            ndviChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'NDVI',
+                        data: ndviValues,
+                        backgroundColor: ndviValues.map(v => {
+                            if (v >= 0.6) return '#22c55e';
+                            if (v >= 0.4) return '#84cc16';
+                            if (v >= 0.2) return '#eab308';
+                            if (v >= 0.1) return '#f97316';
+                            return '#ef4444';
+                        }),
+                        borderColor: ndviValues.map(v => {
+                            if (v >= 0.6) return '#16a34a';
+                            if (v >= 0.4) return '#65a30d';
+                            if (v >= 0.2) return '#ca8a04';
+                            if (v >= 0.1) return '#ea580c';
+                            return '#dc2626';
+                        }),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: 'Unit NDVI Comparison'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `NDVI: ${context.parsed.y.toFixed(3)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 1,
+                            ticks: {
+                                stepSize: 0.1,
+                                callback: function(value) {
+                                    return value.toFixed(1);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ============================================================
+        // UPDATE NDVI CHART (History)
+        // ============================================================
+        function updateNDVIChart(history) {
+            if (!history || history.length === 0) {
+                return;
+            }
+
+            const ctx = document.getElementById('ndvi-chart').getContext('2d');
+            
+            if (ndviChart) {
+                ndviChart.destroy();
+            }
+
+            const labels = history.map(h => new Date(h.date).toLocaleDateString());
+            const values = history.map(h => parseFloat(h.ndvi_value));
+
+            ndviChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'NDVI',
+                        data: values,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: values.map(v => {
+                            if (v >= 0.6) return '#22c55e';
+                            if (v >= 0.4) return '#84cc16';
+                            if (v >= 0.2) return '#eab308';
+                            if (v >= 0.1) return '#f97316';
+                            return '#ef4444';
+                        })
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: {
+                            display: true,
+                            text: 'NDVI History'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        // ============================================================
+        // UPDATE STATS
+        // ============================================================
+        function updateStats(data) {
+            const features = data.features || [];
+            let totalUnits = 0;
+            let totalNDVI = 0;
+            let ndviCount = 0;
+
+            features.forEach(f => {
+                const units = f.properties?.units || [];
+                totalUnits += units.length;
+                units.forEach(u => {
+                    if (u.ndvi_value) {
+                        totalNDVI += parseFloat(u.ndvi_value);
+                        ndviCount++;
+                    }
+                });
+            });
+
+            document.getElementById('total-units').textContent = totalUnits;
+            document.getElementById('avg-ndvi').textContent = ndviCount > 0 ? (totalNDVI / ndviCount).toFixed(3) : '-';
+        }
+
+        // ============================================================
+        // UPDATE FARM STATS
+        // ============================================================
+        function updateFarmStats(data) {
+            const units = data.units || [];
+            let totalNDVI = 0;
+            let ndviCount = 0;
+
+            units.forEach(u => {
+                if (u.ndvi_value) {
+                    totalNDVI += parseFloat(u.ndvi_value);
+                    ndviCount++;
+                }
+            });
+
+            document.getElementById('total-units').textContent = units.length;
+            document.getElementById('avg-ndvi').textContent = ndviCount > 0 ? (totalNDVI / ndviCount).toFixed(3) : '-';
+        }
+
+        // ============================================================
+        // ADD UNIT MODAL
+        // ============================================================
+        function openAddUnitModal(farmId) {
+            document.getElementById('unit-farm-id').value = farmId;
+            document.getElementById('add-unit-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('add-unit-modal').classList.add('hidden');
+            document.getElementById('unit-form').reset();
+        }
+
+        // ============================================================
+        // SAVE BOUNDARY
+        // ============================================================
+        async function saveBoundary(geoJSON) {
+            // This would save the boundary to the farm
+            console.log('Saving boundary:', geoJSON);
+            // You can implement this endpoint in your backend
+        }
+
+        // ============================================================
+        // TOGGLE LAYER
+        // ============================================================
+        function toggleLayer(type) {
+            if (type === 'satellite') {
+                map.removeLayer(map.osmLayer);
+                map.removeLayer(map.ndviLayer);
+                map.satelliteLayer.addTo(map);
+                currentLayer = 'satellite';
+                updateStatus('info', '🛰️ Satellite view');
+            } else if (type === 'ndvi') {
+                map.removeLayer(map.osmLayer);
+                map.removeLayer(map.satelliteLayer);
+                map.ndviLayer.addTo(map);
+                currentLayer = 'ndvi';
+                updateStatus('info', '🌿 NDVI overlay');
+            } else {
+                map.removeLayer(map.satelliteLayer);
+                map.removeLayer(map.ndviLayer);
+                map.osmLayer.addTo(map);
+                currentLayer = 'default';
+                updateStatus('info', '🗺️ Default view');
+            }
+        }
+
+        // ============================================================
+        // REFRESH DATA
+        // ============================================================
+        function refreshData() {
+            loadFarms();
+            if (selectedFarmId) {
+                setTimeout(loadFarmData, 500);
+            }
+        }
+
+        // ============================================================
+        // UNIT FORM SUBMIT
+        // ============================================================
+        document.getElementById('unit-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const farmId = document.getElementById('unit-farm-id').value;
+            const unitData = {
+                unit_number: document.getElementById('unit-number').value,
+                size_of_unit: document.getElementById('unit-size').value,
+                price: document.getElementById('unit-price').value,
+                crop_type: document.getElementById('unit-crop').value,
+                crop_description: document.getElementById('unit-crop-desc').value,
+                planting_date: document.getElementById('unit-planting-date').value,
+                expected_harvest_date: document.getElementById('unit-harvest-date').value,
+                expected_yield_per_unit_kg: document.getElementById('unit-yield').value,
+                image_url: document.getElementById('unit-image-url').value,
+                latitude: document.getElementById('unit-lat').value,
+                longitude: document.getElementById('unit-lng').value
+            };
+
+            try {
+                const response = await axios.post(`${API_BASE}/api/farms/${farmId}/units`, unitData, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.status === 201) {
+                    alert('✅ Unit added successfully!');
+                    closeModal();
+                    loadFarmData();
+                }
+            } catch (error) {
+                console.error('Add unit error:', error);
+                alert('❌ Error adding unit: ' + (error.response?.data?.message || error.message));
+            }
+        });

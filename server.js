@@ -8,6 +8,7 @@ const favicon = require('serve-favicon');
 const socketio = require('socket.io');
 const cookieParser = require('cookie-parser');
 
+
 const adminRoutes = require('./routes/admin');
 const investorRoutes = require('./routes/investorRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -22,6 +23,7 @@ const farmManagerRoutes = require('./routes/farmManagerRoutes');
 const harvestRoutes = require('./routes/harvestRoutes');
 const farmUnitRoutes = require('./routes/farmUnitRoutes');
 const marketplaceRoutes = require('./routes/marketplaceRoutes');
+const gisRoutes = require('./routes/gisRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -53,6 +55,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Database connection
 sequelize.authenticate()
@@ -89,6 +92,7 @@ app.use('/auth', authRoutes);
 app.use('/admin', adminRoutes);
 app.use('/api/documents', require('./routes/documentRoutes'));
 app.use('/api/marketplace', marketplaceRoutes);
+app.use('/api/gis', gisRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {

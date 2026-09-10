@@ -27,6 +27,17 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       comment: 'Longitude coordinate of the farm',
     },
+    // ✅ NEW: PostGIS geometry fields
+    geometry: {
+      type: DataTypes.GEOMETRY('POINT', 4326),
+      allowNull: true,
+      comment: 'PostGIS geometry for farm location',
+    },
+    boundary: {
+      type: DataTypes.GEOMETRY('POLYGON', 4326),
+      allowNull: true,
+      comment: 'PostGIS geometry for farm boundary',
+    },
     measurement_unit: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -103,6 +114,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
+  }, {
+    tableName: 'Farms',
+    timestamps: true,
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
   });
 
   Farm.associate = function(models) {

@@ -1,11 +1,35 @@
 const { Notification, User } = require('../models');
+const { Op } = require('sequelize');
+
+// ===== TYPE MAPPING FOR FRONTEND =====
+// Maps internal types to what the frontend should display.
+// Only applied on READ endpoints. Database stays untouched.
+const mapTypeForFrontend = (type) => {
+  return type === 'system' ? 'Admin' : type;
+};
+
+// Helper: map a single notification's type
+const mapNotificationType = (notification) => {
+  const plain = notification.toJSON ? notification.toJSON() : notification;
+  return {
+    ...plain,
+    type: mapTypeForFrontend(plain.type)
+  };
+};
+
+// Helper: map an array of notifications
+const mapNotificationsType = (notifications) => {
+  return notifications.map(mapNotificationType);
+};
+
+// ===== CONTROLLER FUNCTIONS =====
 
 // Improved create notification with more options
+// ⚠️ NO mapping here — this is a WRITE endpoint
 exports.createNotification = async (req, res) => {
   try {
     const { user_id, title, message, type, related_entity_id, metadata, action_url } = req.body;
 
-    // Validation (keep your existing checks)
     if (!user_id || !title || !message || !type) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -25,26 +49,26 @@ exports.createNotification = async (req, res) => {
     const io = req.app.get('socketio');
     if (io) {
       io.to(`user_${user_id}`).emit('new_notification', {
-        event: type, // 'property_purchase', 'new_signup', etc.
+        event: type,
         data: notification
       });
       console.log(`Real-time notification sent to user ${user_id}`);
     }
 
-    return res.status(201).json({ 
+    return res.status(201).json({
       success: true,
-      notification 
+      notification
     });
   } catch (error) {
     console.error("Create Notification Error:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: 'Failed to create notification'
     });
   }
 };
 
-// In your controller
+// ✅ READ endpoint — mapping applied
 exports.getUserNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -59,16 +83,19 @@ exports.getUserNotifications = async (req, res) => {
     });
 
     const unreadCount = await Notification.count({
-      where: { 
+      where: {
         user_id: userId,
         is_read: false
       }
     });
 
+    // ✅ Map 'system' → 'Admin' for frontend
+    const mappedRows = mapNotificationsType(rows);
+
     res.json({
       success: true,
       data: {
-        notifications: rows,
+        notifications: mappedRows,
         unread_count: unreadCount
       },
       pagination: {
@@ -83,11 +110,15 @@ exports.getUserNotifications = async (req, res) => {
       }
     });
   } catch (error) {
-    // Error handling...
+    console.error("Get Notifications Error:", error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve notifications'
+    });
   }
 };
 
-// Mark single notification as read
+// Mark single notification as read — NOT mapped (write endpoint)
 exports.markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
@@ -98,29 +129,29 @@ exports.markAsRead = async (req, res) => {
     });
 
     if (!notification) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Notification not found' 
+        message: 'Notification not found'
       });
     }
 
     await notification.update({ is_read: true });
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       success: true,
       message: 'Notification marked as read',
-      notification 
+      notification
     });
   } catch (error) {
     console.error("Mark as Read Error:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: 'Failed to update notification'
     });
   }
 };
 
-// New: Mark all notifications as read
+// Mark all notifications as read — NOT mapped (write endpoint)
 exports.markAllAsRead = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -130,20 +161,20 @@ exports.markAllAsRead = async (req, res) => {
       { where: { user_id: userId, is_read: false } }
     );
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       success: true,
       message: 'All notifications marked as read'
     });
   } catch (error) {
     console.error("Mark All as Read Error:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: 'Failed to update notifications'
     });
   }
 };
 
-// New: Delete notification
+// Delete notification — NOT mapped (write endpoint)
 exports.deleteNotification = async (req, res) => {
   try {
     const { id } = req.params;
@@ -154,63 +185,61 @@ exports.deleteNotification = async (req, res) => {
     });
 
     if (!notification) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Notification not found' 
+        message: 'Notification not found'
       });
     }
 
     await notification.destroy();
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       success: true,
       message: 'Notification deleted successfully'
     });
   } catch (error) {
     console.error("Delete Notification Error:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: 'Failed to delete notification'
     });
   }
 };
 
-// Add this to your NotificationController
+// ✅ READ endpoint — SSE stream, mapping applied
 exports.notificationStream = async (req, res) => {
   try {
     const userId = req.user.id;
-    
-    // SSE Setup
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    // Initial connection message
     res.write('event: connected\ndata: SSE connection established\n\n');
 
-    // Polling function (checks for new notifications every 5 seconds)
     const intervalId = setInterval(async () => {
       try {
         const unreadNotifications = await Notification.findAll({
-          where: { 
+          where: {
             user_id: userId,
             is_read: false,
-            created_at: { [Sequelize.Op.gt]: new Date(Date.now() - 30000) } // Last 30 seconds
+            created_at: { [Op.gt]: new Date(Date.now() - 30000) }
           },
           limit: 5,
           order: [['created_at', 'DESC']]
         });
 
         if (unreadNotifications.length > 0) {
-          res.write(`data: ${JSON.stringify(unreadNotifications)}\n\n`);
+          // ✅ Map 'system' → 'Admin' for frontend
+          const mapped = mapNotificationsType(unreadNotifications);
+          res.write(`data: ${JSON.stringify(mapped)}\n\n`);
         }
       } catch (error) {
         console.error('SSE Polling Error:', error);
       }
-    }, 5000); // Check every 5 seconds
+    }, 5000);
 
-    // Cleanup on client disconnect
     req.on('close', () => {
       clearInterval(intervalId);
       res.end();
@@ -222,13 +251,13 @@ exports.notificationStream = async (req, res) => {
   }
 };
 
+// ✅ READ endpoint — mapping applied
 exports.getUserNotificationsById = async (req, res) => {
   try {
     const { user_id } = req.params;
     const currentUserId = req.user.id;
     const userRole = req.user.role;
 
-    // Clients can only access their own notifications
     if (userRole === 'client' && parseInt(user_id) !== currentUserId) {
       return res.status(403).json({
         success: false,
@@ -236,10 +265,8 @@ exports.getUserNotificationsById = async (req, res) => {
       });
     }
 
-    // Base query conditions
     const where = { user_id };
 
-    // For admins viewing other users' notifications
     if (userRole === 'admin' && parseInt(user_id) !== currentUserId) {
       const notifications = await Notification.findAll({
         where,
@@ -251,9 +278,12 @@ exports.getUserNotificationsById = async (req, res) => {
         order: [['created_at', 'DESC']]
       });
 
+      // ✅ Map 'system' → 'Admin' for frontend
+      const mapped = mapNotificationsType(notifications);
+
       return res.status(200).json({
         success: true,
-        data: notifications,
+        data: mapped,
         meta: {
           access_level: 'admin_view',
           user_id: parseInt(user_id),
@@ -262,15 +292,17 @@ exports.getUserNotificationsById = async (req, res) => {
       });
     }
 
-    // For users viewing their own notifications
     const notifications = await Notification.findAll({
       where,
       order: [['created_at', 'DESC']]
     });
 
+    // ✅ Map 'system' → 'Admin' for frontend
+    const mapped = mapNotificationsType(notifications);
+
     res.status(200).json({
       success: true,
-      data: notifications,
+      data: mapped,
       meta: {
         access_level: 'owner_view',
         timestamp: new Date().toISOString()
