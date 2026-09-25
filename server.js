@@ -24,6 +24,7 @@ const harvestRoutes = require('./routes/harvestRoutes');
 const farmUnitRoutes = require('./routes/farmUnitRoutes');
 const marketplaceRoutes = require('./routes/marketplaceRoutes');
 const gisRoutes = require('./routes/gisRoutes');
+const affiliateRoutes = require('./affiliate/routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -93,6 +94,7 @@ app.use('/admin', adminRoutes);
 app.use('/api/documents', require('./routes/documentRoutes'));
 app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/gis', gisRoutes);
+app.use('/api/affiliate', affiliateRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {
