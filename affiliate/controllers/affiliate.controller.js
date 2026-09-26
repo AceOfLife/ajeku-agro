@@ -31,8 +31,11 @@ exports.createAffiliate = async (req, res) => {
 
 // GET /api/affiliate/admin/affiliates  (admin only)
 // GET /api/affiliate/admin/affiliates?include=workers&affiliateId=<uuid>
+// GET /api/affiliate/admin/affiliates?include=workers,balance&affiliateId=<uuid>
 exports.listAffiliates = async (req, res) => {
-  const includeWorkers = req.query.include === 'workers';
+  const includeParam = (req.query.include || '').split(',').map((s) => s.trim());
+  const includeWorkers = includeParam.includes('workers');
+  const includeBalance = includeParam.includes('balance');
   const { affiliateId } = req.query;
 
   const where = { role: 'affiliate' };
@@ -53,10 +56,17 @@ exports.listAffiliates = async (req, res) => {
       : [],
   });
 
-  const data = affiliates.map((a) => ({
-    ...publicUser(a),
-    ...(includeWorkers && {
-      workers: (a.workers || []).map((w) => ({
+  let balanceMap = new Map();
+  if (includeBalance) {
+    const ids = affiliates.map((a) => a.id);
+    const { getBalancesForAffiliates } = require('../services/balance.service');
+    balanceMap = await getBalancesForAffiliates(ids);
+  }
+
+  const data = affiliates.map((a) => {
+    const base = publicUser(a);
+    if (includeWorkers) {
+      base.workers = (a.workers || []).map((w) => ({
         id: w.id,
         name: w.name,
         email: w.email,
@@ -64,9 +74,20 @@ exports.listAffiliates = async (req, res) => {
         affiliateId: a.id,
         isActive: w.isActive,
         createdAt: w.createdAt,
-      })),
-    }),
-  }));
+      }));
+    }
+    if (includeBalance) {
+      base.balance = balanceMap.get(a.id) || {
+        commissionEarned: 0,
+        completedSalesCount: 0,
+        paidManually: 0,
+        outstandingBalance: 0,
+        pendingCommission: 0,
+        pendingSalesCount: 0,
+      };
+    }
+    return base;
+  });
 
   return ok(res, data);
 };
@@ -106,4 +127,12 @@ exports.toggleWorker = async (req, res) => {
   worker.isActive = !worker.isActive;
   await worker.save();
   return ok(res, publicUser(worker), `Worker ${worker.isActive ? 'activated' : 'deactivated'}`);
+};
+
+// GET /api/affiliate/admin/affiliates/:id/balance   (admin only)
+exports.getAffiliateBalance = async (req, res) => {
+  const { getAffiliateBalance } = require('../services/balance.service');
+  const data = await getAffiliateBalance(req.params.id);
+  if (!data) return fail(res, 'Affiliate not found', 404);
+  return ok(res, data);
 };

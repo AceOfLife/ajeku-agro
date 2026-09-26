@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 const { Payment, User } = require('../models');
 const { ok, fail } = require('../utils/response');
 const { paymentRef } = require('../utils/refs');
+const { getAffiliateBalance } = require('../services/balance.service');
 
 const serialize = (p) => ({
   id: p.id,
@@ -32,10 +33,23 @@ exports.adminCreatePayment = async (req, res) => {
   });
   if (!affiliate) return fail(res, 'Affiliate not found', 404);
 
+  // Hard cap: cannot pay more than the current outstanding balance
+  const balance = await getAffiliateBalance(affiliateId);
+  const outstanding = balance ? balance.outstandingBalance : 0;
+  const requested = Number(amount);
+
+  if (requested > outstanding) {
+    return fail(
+      res,
+      `Payment amount (₦${requested.toLocaleString()}) exceeds outstanding balance (₦${outstanding.toLocaleString()})`,
+      400
+    );
+  }
+
   const payment = await Payment.create({
     ref: paymentRef(new Date(paidOn)),
     affiliateId,
-    amount,
+    amount: requested,
     paidOn,
     status: status || 'paid',
     paymentMethod: paymentMethod || null,

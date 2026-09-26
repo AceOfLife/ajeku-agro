@@ -15,6 +15,12 @@ router.use(authenticate, authorize('admin'));
 
 router.post('/affiliates', createAffiliateRules, validate, ctrl.createAffiliate);
 router.get('/affiliates', ctrl.listAffiliates);
+router.get(
+  '/affiliates/:id/balance',
+  [param('id').isUUID()],
+  validate,
+  ctrl.getAffiliateBalance
+);
 
 router.post('/payments', paymentCreateRules, validate, paymentCtrl.adminCreatePayment);
 router.get('/payments', paymentListRules, validate, paymentCtrl.adminListPayments);
