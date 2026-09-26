@@ -28,7 +28,7 @@ const listRules = [
   query('affiliateId').optional().isUUID(),
   query('from').optional().isISO8601(),
   query('to').optional().isISO8601(),
-  query('includeDeleted').optional().isBoolean(),
+  query('includeDeleted').optional().isIn(['true', 'false']),
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
 ];

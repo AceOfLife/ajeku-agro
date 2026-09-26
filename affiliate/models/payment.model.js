@@ -33,7 +33,8 @@ module.exports = (sequelize, DataTypes) => {
     {
       tableName: 'payments',
       schema: 'affiliate',
-      paranoid: false, // we handle soft-delete manually via deleted_at
+      paranoid: true,
+      deletedAt: 'deleted_at',
     }
   );
   return Payment;
