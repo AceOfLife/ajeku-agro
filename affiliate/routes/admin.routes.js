@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { param } = require('express-validator');
 const ctrl = require('../controllers/affiliate.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validate.middleware');
