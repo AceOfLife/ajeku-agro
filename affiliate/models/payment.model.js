@@ -20,12 +20,20 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 'paid',
       },
+      paymentMethod: {
+        type: DataTypes.ENUM('bank_transfer', 'cash', 'cheque', 'other'),
+        allowNull: true,
+      },
       note: { type: DataTypes.TEXT, allowNull: true },
       createdBy: { type: DataTypes.UUID, allowNull: false },
+      updatedBy: { type: DataTypes.UUID, allowNull: true },
+      deletedAt: { type: DataTypes.DATE, allowNull: true },
+      deletedBy: { type: DataTypes.UUID, allowNull: true },
     },
     {
       tableName: 'payments',
       schema: 'affiliate',
+      paranoid: false, // we handle soft-delete manually via deleted_at
     }
   );
   return Payment;

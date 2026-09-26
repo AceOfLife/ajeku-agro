@@ -5,6 +5,7 @@ router.use('/admin', require('./admin.routes'));
 router.use('/affiliates', require('./affiliate.routes'));
 router.use('/products', require('./product.routes'));
 router.use('/sales', require('./sale.routes'));   
+router.use('/payments', require('./payment.routes'));
 router.use('/dashboard', require('./dashboard.routes'));
 
 router.get('/health', (_req, res) =>
