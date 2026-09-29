@@ -21,8 +21,17 @@ const changePasswordRules = [
   body('newPassword').isString().isLength({ min: 6 }),
 ];
 
-const createAffiliateRules = signupRules;
-const createWorkerRules = signupRules;
+const createAffiliateRules = [
+  body('name').isString().trim().notEmpty().withMessage('Name required'),
+  body('email').isEmail().withMessage('Valid email required'),
+  body('password').isString().isLength({ min: 6 }).withMessage('Password min 6 chars'),
+];
+
+const createWorkerRules = [
+  body('name').isString().trim().notEmpty().withMessage('Name required'),
+  body('email').isEmail().withMessage('Valid email required'),
+  body('password').isString().isLength({ min: 6 }).withMessage('Password min 6 chars'),
+];
 
 module.exports = {
   signupRules,
