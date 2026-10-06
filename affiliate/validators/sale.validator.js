@@ -1,7 +1,7 @@
 const { body, param, query } = require('express-validator');
 
 const createRules = [
-  body('productId').isUUID().withMessage('Valid product id required'),
+  body('affiliateProductId').isUUID().withMessage('Valid affiliateProductId required'),
   body('quantity').isInt({ min: 1 }).withMessage('Quantity must be >= 1'),
 ];
 
@@ -16,6 +16,7 @@ const idRule = [param('id').isUUID()];
 
 const listRules = [
   query('status').optional().isIn(['pending', 'completed', 'refunded']),
+  query('affiliateProductId').optional().isUUID(),
   query('productId').optional().isUUID(),
   query('affiliateId').optional().isUUID(),
   query('from').optional().isISO8601(),

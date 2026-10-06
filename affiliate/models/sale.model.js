@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         primaryKey: true,
       },
       ref: { type: DataTypes.STRING, allowNull: false, unique: true },
-      productId: { type: DataTypes.UUID, allowNull: false },
+      affiliateProductId: { type: DataTypes.UUID, allowNull: false },
       affiliateId: { type: DataTypes.UUID, allowNull: false },        // commission owner
       loggedByUserId: { type: DataTypes.UUID, allowNull: false },     // worker or partner
       quantity: {

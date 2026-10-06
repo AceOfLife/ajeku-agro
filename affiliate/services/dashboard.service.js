@@ -1,5 +1,5 @@
 const { Op, fn, col, literal } = require('sequelize');
-const { Sale, Payment, Product } = require('../models');
+const { Sale, Payment, AffiliateProduct, Product } = require('../models');
 
 /**
  * Build a WHERE clause scoped to the caller's role.
@@ -31,8 +31,7 @@ function paymentScope(user, query) {
   if (user.role === 'affiliate') {
     return { affiliateId: user.id };
   }
-  // workers don't see payments
-  return null;
+  return null; // workers don't see payments
 }
 
 /**
@@ -92,6 +91,7 @@ async function summary(user, query) {
 
 /**
  * Sales by product.
+ * Groups by affiliateProductId, then joins through to Product for the name.
  */
 async function byProduct(user, query) {
   const where = scopeWhere(user, query);
@@ -100,21 +100,38 @@ async function byProduct(user, query) {
   const rows = await Sale.findAll({
     where,
     attributes: [
-      'productId',
+      'affiliateProductId',
       [fn('COUNT', col('Sale.id')), 'orders'],
       [fn('COALESCE', fn('SUM', col('gross_amount')), 0), 'gross'],
       [fn('COALESCE', fn('SUM', col('commission_amount')), 0), 'commission'],
     ],
-    include: [{ model: Product, as: 'product', attributes: ['id', 'name', 'description'] }],
-    group: ['Sale.product_id', 'product.id'],
+    include: [
+      {
+        model: AffiliateProduct,
+        as: 'affiliateProduct',
+        attributes: ['id', 'commissionPercent'],
+        include: [
+          { model: Product, as: 'product', attributes: ['id', 'name', 'description'] },
+        ],
+      },
+    ],
+    group: [
+      'Sale.affiliate_product_id',
+      'affiliateProduct.id',
+      'affiliateProduct->product.id',
+    ],
     order: [[literal('gross'), 'DESC']],
     raw: false,
   });
 
   return rows.map((r) => ({
-    productId: r.productId,
-    product: r.product
-      ? { id: r.product.id, name: r.product.name, description: r.product.description }
+    affiliateProductId: r.affiliateProductId,
+    product: r.affiliateProduct?.product
+      ? {
+          id: r.affiliateProduct.product.id,
+          name: r.affiliateProduct.product.name,
+          description: r.affiliateProduct.product.description,
+        }
       : null,
     orders: Number(r.get('orders')),
     grossSales: Number(r.get('gross')),
@@ -160,7 +177,13 @@ async function ledger(user, query) {
 
   const { rows, count } = await Sale.findAndCountAll({
     where,
-    include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+    include: [
+      {
+        model: AffiliateProduct,
+        as: 'affiliateProduct',
+        include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+      },
+    ],
     order: [['createdAt', 'DESC']],
     limit,
     offset,
@@ -170,7 +193,9 @@ async function ledger(user, query) {
     items: rows.map((s) => ({
       id: s.id,
       ref: s.ref,
-      product: s.product ? { id: s.product.id, name: s.product.name } : null,
+      product: s.affiliateProduct?.product
+        ? { id: s.affiliateProduct.product.id, name: s.affiliateProduct.product.name }
+        : null,
       quantity: s.quantity,
       grossAmount: Number(s.grossAmount),
       commissionAmount: Number(s.commissionAmount),
@@ -228,8 +253,8 @@ async function overview(user, query) {
       summary(user, query),
       byProduct(user, query),
       timeline(user, query),
-      ledger(user, { ...query, limit: 5 }), // small ledger preview
-      payments(user, { ...query, limit: 5 }), // small payments preview
+      ledger(user, { ...query, limit: 5 }),
+      payments(user, { ...query, limit: 5 }),
     ]);
 
   return {

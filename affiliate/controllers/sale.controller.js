@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { sequelize, Sale, Product, User } = require('../models');
+const { sequelize, Sale, AffiliateProduct, Product, User } = require('../models');
 const { ok, fail } = require('../utils/response');
 const { saleRef } = require('../utils/refs');
 const { decrementStock, restoreStock } = require('../services/stock.service');
@@ -7,9 +7,17 @@ const { decrementStock, restoreStock } = require('../services/stock.service');
 const serialize = (s) => ({
   id: s.id,
   ref: s.ref,
-  productId: s.productId,
-  product: s.product
-    ? { id: s.product.id, name: s.product.name }
+  affiliateProductId: s.affiliateProductId,
+  affiliateProduct: s.affiliateProduct
+    ? {
+        id: s.affiliateProduct.id,
+        product: s.affiliateProduct.product
+          ? {
+              id: s.affiliateProduct.product.id,
+              name: s.affiliateProduct.product.name,
+            }
+          : null,
+      }
     : undefined,
   affiliateId: s.affiliateId,
   loggedByUserId: s.loggedByUserId,
@@ -23,38 +31,52 @@ const serialize = (s) => ({
   updatedAt: s.updatedAt,
 });
 
+const fullInclude = [
+  {
+    model: AffiliateProduct,
+    as: 'affiliateProduct',
+    include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+  },
+];
+
 // POST /api/affiliate/sales   (affiliate or worker)
 exports.createSale = async (req, res) => {
-  const { productId, quantity } = req.body;
+  const { affiliateProductId, quantity } = req.body;
   const qty = parseInt(quantity, 10);
 
   // Resolve affiliate (worker → parent; affiliate → self)
   const affiliateId =
     req.user.role === 'worker' ? req.user.parentAffiliateId : req.user.id;
-
   if (!affiliateId) {
     return fail(res, 'Could not resolve affiliate for this user', 400);
   }
 
-  const product = await Product.findByPk(productId);
-  if (!product || !product.isActive) {
-    return fail(res, 'Product not found or inactive', 404);
+  const ap = await AffiliateProduct.findByPk(affiliateProductId, {
+    include: [{ model: Product, as: 'product' }],
+  });
+  if (!ap || !ap.isActive) {
+    return fail(res, 'Affiliate product not found or inactive', 404);
   }
 
-  const unitPrice = Number(product.price);
-  const commissionPercent = Number(product.commissionPercent);
+  // Affiliates/workers can only sell products assigned to their affiliate
+  if (ap.affiliateId !== affiliateId) {
+    return fail(res, 'Forbidden: product not assigned to this affiliate', 403);
+  }
+
+  const unitPrice = Number(ap.product.price);
+  const commissionPercent = Number(ap.commissionPercent);
   const grossAmount = +(unitPrice * qty).toFixed(2);
   const commissionAmount = +((grossAmount * commissionPercent) / 100).toFixed(2);
 
   // Atomic: decrement stock + create sale in one transaction
   const t = await sequelize.transaction();
   try {
-    await decrementStock(productId, qty, { transaction: t });
+    await decrementStock(affiliateProductId, qty, { transaction: t });
 
     const sale = await Sale.create(
       {
         ref: saleRef(),
-        productId,
+        affiliateProductId,
         affiliateId,
         loggedByUserId: req.user.id,
         quantity: qty,
@@ -68,9 +90,7 @@ exports.createSale = async (req, res) => {
     );
 
     await t.commit();
-
-    // reload with product for the response
-    await sale.reload({ include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }] });
+    await sale.reload({ include: fullInclude });
     return ok(res, serialize(sale), 'Sale logged', 201);
   } catch (err) {
     await t.rollback();
@@ -82,11 +102,8 @@ exports.createSale = async (req, res) => {
 };
 
 // GET /api/affiliate/sales
-// - admin: all sales, optional filters (affiliateId, status, productId, from, to)
-// - affiliate: own sales (affiliateId = self)
-// - worker: own logged sales (loggedByUserId = self), plus optionally their parent's sales? -> no, only own
 exports.listSales = async (req, res) => {
-  const { status, productId, affiliateId, from, to } = req.query;
+  const { status, affiliateProductId, productId, affiliateId, from, to } = req.query;
   const page = parseInt(req.query.page, 10) || 1;
   const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
   const offset = (page - 1) * limit;
@@ -102,16 +119,23 @@ exports.listSales = async (req, res) => {
   }
 
   if (status) where.status = status;
-  if (productId) where.productId = productId;
+  if (affiliateProductId) where.affiliateProductId = affiliateProductId;
   if (from || to) {
     where.createdAt = {};
     if (from) where.createdAt[Op.gte] = new Date(from);
     if (to) where.createdAt[Op.lte] = new Date(to);
   }
 
+  // If filtering by catalog productId, resolve it through the join
+  const include = [...fullInclude];
+  if (productId) {
+    include[0].where = { productId };
+    include[0].required = true;
+  }
+
   const { rows, count } = await Sale.findAndCountAll({
     where,
-    include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+    include,
     order: [['createdAt', 'DESC']],
     limit,
     offset,
@@ -125,9 +149,7 @@ exports.listSales = async (req, res) => {
 
 // GET /api/affiliate/sales/:id
 exports.getSale = async (req, res) => {
-  const sale = await Sale.findByPk(req.params.id, {
-    include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
-  });
+  const sale = await Sale.findByPk(req.params.id, { include: fullInclude });
   if (!sale) return fail(res, 'Sale not found', 404);
 
   const allowed =
@@ -150,14 +172,12 @@ exports.updateStatus = async (req, res) => {
   const owns =
     (req.user.role === 'affiliate' && sale.affiliateId === req.user.id) ||
     (req.user.role === 'worker' && sale.loggedByUserId === req.user.id);
-
   if (!owns) return fail(res, 'Forbidden', 403);
 
   if (sale.status === status) {
     return ok(res, serialize(sale), `Sale already ${status}`);
   }
 
-  // Guard transitions
   if (sale.status === 'refunded') {
     return fail(res, 'Refunded sales cannot change status', 400);
   }
@@ -165,7 +185,7 @@ exports.updateStatus = async (req, res) => {
   if (status === 'refunded') {
     const t = await sequelize.transaction();
     try {
-      await restoreStock(sale.productId, sale.quantity, { transaction: t });
+      await restoreStock(sale.affiliateProductId, sale.quantity, { transaction: t });
       sale.status = 'refunded';
       await sale.save({ transaction: t });
       await t.commit();

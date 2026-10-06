@@ -7,9 +7,7 @@ const serialize = (p) => ({
   name: p.name,
   description: p.description,
   imageUrls: p.imageUrls,
-  quantity: p.quantity,
   price: Number(p.price),
-  commissionPercent: Number(p.commissionPercent),
   isActive: p.isActive,
   createdBy: p.createdBy,
   createdAt: p.createdAt,
@@ -18,7 +16,7 @@ const serialize = (p) => ({
 
 // POST /api/affiliate/products   (admin)
 exports.createProduct = async (req, res) => {
-  const { name, description, quantity, price, commissionPercent } = req.body;
+  const { name, description, price } = req.body;
 
   const uploaded = await cloudinaryService.uploadProductImages(req.files || []);
 
@@ -26,9 +24,7 @@ exports.createProduct = async (req, res) => {
     name,
     description: description || null,
     imageUrls: uploaded,
-    quantity: parseInt(quantity, 10),
     price,
-    commissionPercent,
     createdBy: req.user.id,
   });
 
@@ -61,12 +57,11 @@ exports.updateProduct = async (req, res) => {
   const product = await Product.findByPk(req.params.id);
   if (!product) return fail(res, 'Product not found', 404);
 
-  const { name, description, price, commissionPercent, isActive } = req.body;
+  const { name, description, price, isActive } = req.body;
 
   if (name !== undefined) product.name = name;
   if (description !== undefined) product.description = description;
   if (price !== undefined) product.price = price;
-  if (commissionPercent !== undefined) product.commissionPercent = commissionPercent;
   if (isActive !== undefined) product.isActive = isActive === true || isActive === 'true';
 
   if (req.files && req.files.length > 0) {
@@ -90,24 +85,4 @@ exports.deleteProduct = async (req, res) => {
   product.isActive = false;
   await product.save();
   return ok(res, serialize(product), 'Product deleted');
-};
-
-// PATCH /api/affiliate/products/:id/stock   (admin)
-// Body: { quantity: 50 } → set absolute   OR   { adjustment: -5 } → relative
-exports.adjustStock = async (req, res) => {
-  const product = await Product.findByPk(req.params.id);
-  if (!product) return fail(res, 'Product not found', 404);
-
-  const { quantity, adjustment } = req.body;
-
-  if (quantity !== undefined) {
-    product.quantity = parseInt(quantity, 10);
-  } else {
-    const next = product.quantity + parseInt(adjustment, 10);
-    if (next < 0) return fail(res, 'Adjustment would make stock negative', 400);
-    product.quantity = next;
-  }
-
-  await product.save();
-  return ok(res, serialize(product), 'Stock updated');
 };

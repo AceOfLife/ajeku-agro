@@ -1,43 +1,45 @@
-const { Product } = require('../models');
+const { AffiliateProduct } = require('../models');
 
 class InsufficientStockError extends Error {
-  constructor(productId, available, requested) {
-    super(`Insufficient stock for product ${name}: have ${available}, need ${requested}`);
+  constructor(affiliateProductId, available, requested) {
+    super(
+      `Insufficient stock for affiliate product ${affiliateProductId}: have ${available}, need ${requested}`
+    );
     this.name = 'InsufficientStockError';
     this.statusCode = 400;
   }
 }
 
-async function decrementStock(productId, quantity, { transaction } = {}) {
+async function decrementStock(affiliateProductId, quantity, { transaction } = {}) {
   if (quantity <= 0) throw new Error('Quantity must be positive');
 
-  const product = await Product.findByPk(productId, {
+  const ap = await AffiliateProduct.findByPk(affiliateProductId, {
     transaction,
     lock: transaction ? transaction.LOCK.UPDATE : undefined,
   });
-  if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
+  if (!ap) throw Object.assign(new Error('Affiliate product not found'), { statusCode: 404 });
 
-  if (product.quantity < quantity) {
-    throw new InsufficientStockError(productId, product.quantity, quantity);
+  if (ap.quantity < quantity) {
+    throw new InsufficientStockError(affiliateProductId, ap.quantity, quantity);
   }
 
-  product.quantity -= quantity;
-  await product.save({ transaction });
-  return product;
+  ap.quantity -= quantity;
+  await ap.save({ transaction });
+  return ap;
 }
 
-async function restoreStock(productId, quantity, { transaction } = {}) {
+async function restoreStock(affiliateProductId, quantity, { transaction } = {}) {
   if (quantity <= 0) throw new Error('Quantity must be positive');
 
-  const product = await Product.findByPk(productId, {
+  const ap = await AffiliateProduct.findByPk(affiliateProductId, {
     transaction,
     lock: transaction ? transaction.LOCK.UPDATE : undefined,
   });
-  if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
+  if (!ap) throw Object.assign(new Error('Affiliate product not found'), { statusCode: 404 });
 
-  product.quantity += quantity;
-  await product.save({ transaction });
-  return product;
+  ap.quantity += quantity;
+  await ap.save({ transaction });
+  return ap;
 }
 
 module.exports = {
