@@ -10,7 +10,7 @@
   "production": {
     "username": "ajeku_agro_vyd4_user",
     "password": "OrASIUZX5rqtzMmFPitPIbqZw95K6eZH",
-    "database": "ajeku_agro_vd2z",
+    "database": "ajeku_agro_vyd4",
     "host": "dpg-db5v2jm7bikc73e5qv4g-a.ohio-postgres.render.com",
     "dialect": "postgres",
     "port": 5432,
