@@ -24,6 +24,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+      qrToken: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        unique: true,
+      },
     },
     {
       tableName: 'users',

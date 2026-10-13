@@ -6,6 +6,7 @@ const Product = require('./product.model')(sequelize, DataTypes);
 const AffiliateProduct = require('./affiliateProduct.model')(sequelize, DataTypes);
 const Sale = require('./sale.model')(sequelize, DataTypes);
 const Payment = require('./payment.model')(sequelize, DataTypes);
+const Verification = require('./verification.model')(sequelize, DataTypes);
 
 // Self-referential: affiliate (parent) → workers (children)
 User.hasMany(User, { as: 'workers', foreignKey: 'parentAffiliateId' });
@@ -39,4 +40,16 @@ Payment.belongsTo(User, { foreignKey: 'affiliateId', as: 'affiliate' });
 User.hasMany(Payment, { foreignKey: 'createdBy', as: 'createdPayments' });
 Payment.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
-module.exports = { sequelize, User, Product, AffiliateProduct, Sale, Payment };
+// Verifications — buyers who scanned an affiliate's QR
+User.hasMany(Verification, { foreignKey: 'affiliateId', as: 'verifications' });
+Verification.belongsTo(User, { foreignKey: 'affiliateId', as: 'affiliate' });
+
+module.exports = {
+  sequelize,
+  User,
+  Product,
+  AffiliateProduct,
+  Sale,
+  Payment,
+  Verification,
+};

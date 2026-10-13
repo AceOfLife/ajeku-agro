@@ -14,6 +14,11 @@ const {
   idRule: paymentIdRule,
   listRules: paymentListRules,
 } = require('../validators/payment.validator');
+const verificationCtrl = require('../controllers/verification.controller');
+const {
+  affiliateIdRule: verificationAffiliateIdRule,
+  listRules: verificationListRules,
+} = require('../validators/verification.validator');
 
 router.use(authenticate, authorize('admin'));
 
@@ -27,6 +32,20 @@ router.get(
   ctrl.getAffiliateBalance
 );
 router.delete('/affiliates/:id', ctrl.deleteAffiliate);
+
+// Affiliate QR (admin)
+router.post(
+  '/affiliates/:id/qr',
+  verificationAffiliateIdRule,
+  validate,
+  verificationCtrl.generateAffiliateQr
+);
+router.get(
+  '/affiliates/:id/qr',
+  verificationAffiliateIdRule,
+  validate,
+  verificationCtrl.adminGetAffiliateQr
+);
 
 // Workers — admin can create / toggle / delete on behalf of any affiliate
 router.post(
@@ -55,5 +74,19 @@ router.get('/payments/:id', paymentIdRule, validate, paymentCtrl.adminGetPayment
 router.patch('/payments/:id', paymentUpdateRules, validate, paymentCtrl.adminUpdatePayment);
 router.delete('/payments/:id', paymentIdRule, validate, paymentCtrl.adminDeletePayment);
 router.post('/payments/:id/restore', paymentIdRule, validate, paymentCtrl.adminRestorePayment);
+
+// Verifications (admin)
+router.get(
+  '/verifications',
+  verificationListRules,
+  validate,
+  verificationCtrl.adminListVerifications
+);
+router.get(
+  '/verification-report',
+  verificationListRules,
+  validate,
+  verificationCtrl.adminReport
+);
 
 module.exports = router;
