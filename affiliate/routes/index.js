@@ -1,14 +1,21 @@
 const router = require('express').Router();
 const { authenticate, authorize } = require('../middleware/auth.middleware');
+const { validate } = require('../middleware/validate.middleware');
+const { submitRules } = require('../validators/verification.validator');
 const verificationCtrl = require('../controllers/verification.controller');
 
 // ===============================================================
-// PUBLIC ROUTES — must be declared BEFORE any router.use('/') mount
+// PUBLIC / SPECIFIC ROUTES — must be BEFORE any router.use('/')
 // ===============================================================
 
 // Public buyer verification (no auth)
 router.get('/verify/:token', verificationCtrl.publicGetForm);
-router.post('/verify/:token', verificationCtrl.publicSubmitForm);
+router.post('/verify/:token', submitRules, validate, verificationCtrl.publicSubmitForm);
+
+// Health (no auth)
+router.get('/health', (_req, res) =>
+  res.json({ success: true, message: 'Affiliate API is running' })
+);
 
 // ===============================================================
 // AUTH-REQUIRED ROUTES
@@ -34,23 +41,7 @@ router.use('/sales', require('./sale.routes'));
 router.use('/payments', require('./payment.routes'));
 router.use('/dashboard', require('./dashboard.routes'));
 
-// Affiliate-product assignments — mounted at root.
-// Its internal routes:
-//   GET    /my-products
-//   POST   /admin/affiliates/:affiliateId/products
-//   GET    /admin/affiliates/:affiliateId/products
-//   GET    /affiliate-products/:id
-//   PATCH  /affiliate-products/:id
-//   PATCH  /affiliate-products/:id/stock
-//   DELETE /affiliate-products/:id
+// Affiliate-product assignments — catch-all, declared last
 router.use('/', require('./affiliateProduct.routes'));
-
-// ===============================================================
-// HEALTH
-// ===============================================================
-
-router.get('/health', (_req, res) =>
-  res.json({ success: true, message: 'Affiliate API is running' })
-);
 
 module.exports = router;
