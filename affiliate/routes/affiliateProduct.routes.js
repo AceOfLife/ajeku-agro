@@ -12,8 +12,8 @@ const {
 
 router.use(authenticate);
 
-// Affiliate: own assigned products
-router.get('/my-products', authorize('affiliate'), ctrl.listMyProducts);
+// Affiliate (own) or worker (parent affiliate's) — used by the POS
+router.get('/my-products', authorize('affiliate', 'worker'), ctrl.listMyProducts);
 
 // Admin or owning affiliate: view one assignment
 router.get('/affiliate-products/:id', idRule, validate, ctrl.getOne);

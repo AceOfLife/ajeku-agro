@@ -1,4 +1,3 @@
-const { Op } = require('sequelize');
 const { AffiliateProduct, Product, User } = require('../models');
 const { ok, fail } = require('../utils/response');
 
@@ -72,9 +71,13 @@ exports.listByAffiliate = async (req, res) => {
   return ok(res, rows.map(serialize));
 };
 
-// GET /api/affiliate/my-products   (affiliate, own only)
+// GET /api/affiliate/my-products   (affiliate: own; worker: parent affiliate's)
 exports.listMyProducts = async (req, res) => {
-  const where = { affiliateId: req.user.id };
+  const affiliateId =
+    req.user.role === 'worker' ? req.user.parentAffiliateId : req.user.id;
+  if (!affiliateId) return fail(res, 'Could not resolve affiliate', 400);
+
+  const where = { affiliateId };
   if (req.query.includeInactive !== 'true') where.isActive = true;
 
   const rows = await AffiliateProduct.findAll({
