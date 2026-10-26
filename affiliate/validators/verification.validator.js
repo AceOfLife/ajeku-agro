@@ -1,6 +1,6 @@
 const { body, param, query } = require('express-validator');
 
-// POST /api/affiliate/verify/:token  (public — buyer submits form)
+// POST /api/affiliate/verify/:token  (public — first-time buyer submits form)
 const submitRules = [
   param('token').isUUID().withMessage('Invalid verification token'),
   body('name')
@@ -17,11 +17,14 @@ const submitRules = [
     .withMessage('Email is too long'),
 ];
 
+// POST /api/affiliate/verify/:token  (public — repeat buyer skips the form)
+const repeatRules = [
+  param('token').isUUID().withMessage('Invalid verification token'),
+  body('buyerToken').isUUID().withMessage('Valid buyerToken required'),
+];
+
 // GET /api/affiliate/verify/:token  (public)
 const tokenRule = [param('token').isUUID().withMessage('Invalid verification token')];
-
-// GET /api/affiliate/admin/affiliates/:id/qr  + POST same path
-const affiliateIdRule = [param('id').isUUID().withMessage('Invalid affiliate id')];
 
 // Admin listing of verifications: filters + pagination
 const listRules = [
@@ -32,4 +35,4 @@ const listRules = [
   query('limit').optional().isInt({ min: 1, max: 100 }),
 ];
 
-module.exports = { submitRules, tokenRule, affiliateIdRule, listRules };
+module.exports = { submitRules, repeatRules, tokenRule, listRules };

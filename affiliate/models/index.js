@@ -6,6 +6,7 @@ const Product = require('./product.model')(sequelize, DataTypes);
 const AffiliateProduct = require('./affiliateProduct.model')(sequelize, DataTypes);
 const Sale = require('./sale.model')(sequelize, DataTypes);
 const Payment = require('./payment.model')(sequelize, DataTypes);
+const Buyer = require('./buyer.model')(sequelize, DataTypes);
 const Verification = require('./verification.model')(sequelize, DataTypes);
 
 // Self-referential: affiliate (parent) → workers (children)
@@ -40,9 +41,19 @@ Payment.belongsTo(User, { foreignKey: 'affiliateId', as: 'affiliate' });
 User.hasMany(Payment, { foreignKey: 'createdBy', as: 'createdPayments' });
 Payment.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' });
 
-// Verifications — buyers who scanned an affiliate's QR
+// Buyers — one per (affiliate, email)
+User.hasMany(Buyer, { foreignKey: 'affiliateId', as: 'buyers' });
+Buyer.belongsTo(User, { foreignKey: 'affiliateId', as: 'affiliate' });
+
+// Verifications — a buyer verifying a specific sale
 User.hasMany(Verification, { foreignKey: 'affiliateId', as: 'verifications' });
 Verification.belongsTo(User, { foreignKey: 'affiliateId', as: 'affiliate' });
+
+Sale.hasMany(Verification, { foreignKey: 'saleId', as: 'verifications' });
+Verification.belongsTo(Sale, { foreignKey: 'saleId', as: 'sale' });
+
+Buyer.hasMany(Verification, { foreignKey: 'buyerId', as: 'verifications' });
+Verification.belongsTo(Buyer, { foreignKey: 'buyerId', as: 'buyer' });
 
 module.exports = {
   sequelize,
@@ -51,5 +62,6 @@ module.exports = {
   AffiliateProduct,
   Sale,
   Payment,
+  Buyer,
   Verification,
 };

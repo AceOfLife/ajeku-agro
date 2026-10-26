@@ -8,6 +8,8 @@ module.exports = (sequelize, DataTypes) => {
         primaryKey: true,
       },
       affiliateId: { type: DataTypes.UUID, allowNull: false },
+      saleId: { type: DataTypes.UUID, allowNull: true },
+      buyerId: { type: DataTypes.UUID, allowNull: true },
       name: { type: DataTypes.STRING, allowNull: false },
       email: {
         type: DataTypes.STRING,
@@ -30,9 +32,17 @@ module.exports = (sequelize, DataTypes) => {
       schema: 'affiliate',
       indexes: [
         {
+          fields: ['sale_id'],
+          name: 'affiliate_verifications_sale_idx',
+        },
+        {
+          fields: ['buyer_id'],
+          name: 'affiliate_verifications_buyer_idx',
+        },
+        {
           unique: true,
-          fields: ['affiliate_id', 'email'],
-          name: 'affiliate_verifications_unique_affiliate_email',
+          fields: ['sale_id', 'buyer_id'],
+          name: 'affiliate_verifications_unique_sale_buyer',
         },
       ],
     }

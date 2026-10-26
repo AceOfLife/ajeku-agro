@@ -25,6 +25,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 'pending',
       },
+      verificationToken: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        unique: true,
+      },
     },
     {
       tableName: 'sales',
