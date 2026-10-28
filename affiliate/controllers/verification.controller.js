@@ -73,13 +73,15 @@ exports.publicGetForm = async (req, res) => {
       ],
     });
     if (!sale) return fail(res, 'Invalid verification link', 404);
-    if (sale.status !== 'completed') {
-      return fail(res, 'Sale not yet completed', 400);
-    }
 
-    const existingVerification = await Verification.findOne({
-      where: { saleId: sale.id },
-    });
+    // Determine status
+    let status;
+    if (sale.status !== 'completed') {
+      status = 'not_completed';
+    } else {
+      const existing = await Verification.findOne({ where: { saleId: sale.id } });
+      status = existing ? 'verified' : 'unverified';
+    }
 
     const product = sale.affiliateProduct?.product;
 
@@ -90,7 +92,7 @@ exports.publicGetForm = async (req, res) => {
       grossAmount: Number(sale.grossAmount),
       currency: 'NGN',
       affiliateName: sale.affiliate ? sale.affiliate.name : null,
-      alreadyVerified: !!existingVerification,
+      status,
     });
   } catch (err) {
     console.error('[verify] publicGetForm error:', err);
@@ -138,7 +140,7 @@ exports.publicSubmitForm = async (req, res) => {
       return fail(res, 'Sale not yet completed', 400);
     }
 
-    // ── Reject if this sale is already verified ─────────────────
+    // Reject if this sale is already verified (one per sale, forever)
     const existingVerification = await Verification.findOne({
       where: { saleId: sale.id },
     });
@@ -155,7 +157,7 @@ exports.publicSubmitForm = async (req, res) => {
 
     let buyer = null;
 
-    // ── Mode 1: repeat buyer via token ──────────────────────────
+    // Mode 1: repeat buyer via token
     if (buyerToken) {
       buyer = await Buyer.findOne({
         where: { buyerToken, affiliateId: sale.affiliateId },
@@ -167,7 +169,7 @@ exports.publicSubmitForm = async (req, res) => {
       await buyer.save();
     }
 
-    // ── Mode 2: first-time buyer with name/email ────────────────
+    // Mode 2: first-time buyer with name/email
     if (!buyer) {
       if (!name || !email) {
         return fail(res, 'Provide name and email, or a valid buyerToken', 400);
@@ -198,7 +200,7 @@ exports.publicSubmitForm = async (req, res) => {
       }
     }
 
-    // ── Create the verification row (guaranteed unique per sale) ─
+    // Create the verification row (guaranteed unique per sale)
     await Verification.create({
       affiliateId: sale.affiliateId,
       saleId: sale.id,
@@ -353,8 +355,6 @@ exports.adminListVerifications = async (req, res) => {
 };
 
 // GET /api/affiliate/admin/verification-report   (admin)
-// Per affiliate: completedSales, verifiedSales, unverifiedSales,
-// verificationRate, uniqueBuyers
 exports.adminReport = async (req, res) => {
   try {
     const { from, to } = req.query;
@@ -366,7 +366,6 @@ exports.adminReport = async (req, res) => {
       if (to) completedWhere.createdAt[Op.lte] = new Date(to);
     }
 
-    // 1. Completed sales per affiliate
     const salesByAffiliate = await Sale.findAll({
       where: completedWhere,
       attributes: [
@@ -383,7 +382,6 @@ exports.adminReport = async (req, res) => {
 
     const affiliateIds = salesByAffiliate.map((r) => r.affiliateId);
 
-    // 2. Verified sales per affiliate (sales with ≥1 verification)
     const verifiedByAffiliate = await Sale.findAll({
       where: completedWhere,
       attributes: [
@@ -406,7 +404,6 @@ exports.adminReport = async (req, res) => {
       verifiedByAffiliate.map((r) => [r.affiliateId, Number(r.verifiedSales)])
     );
 
-    // 3. Unique buyers per affiliate
     const uniqueBuyersByAffiliate = await Verification.findAll({
       where: { affiliateId: { [Op.in]: affiliateIds } },
       attributes: [
@@ -421,7 +418,6 @@ exports.adminReport = async (req, res) => {
       uniqueBuyersByAffiliate.map((r) => [r.affiliateId, Number(r.uniqueBuyers)])
     );
 
-    // 4. Affiliate names
     const affiliates = await User.findAll({
       where: { id: { [Op.in]: affiliateIds } },
       attributes: ['id', 'name'],

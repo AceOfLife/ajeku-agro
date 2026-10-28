@@ -23,8 +23,6 @@ module.exports = {
     ).catch(() => null);
 
     // 3. Add unique constraint on sale_id alone
-    //    NULL sale_id values (old backfilled rows) are allowed to remain multiple —
-    //    Postgres treats NULLs as distinct in unique constraints.
     await queryInterface.addConstraint(
       { tableName: 'verifications', schema: 'affiliate' },
       {
