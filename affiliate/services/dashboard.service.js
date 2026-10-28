@@ -1,9 +1,6 @@
 const { Op, fn, col, literal } = require('sequelize');
-const { Sale, Payment, AffiliateProduct, Product } = require('../models');
+const { Sale, SaleItem, Payment, AffiliateProduct, Product } = require('../models');
 
-/**
- * Build a WHERE clause scoped to the caller's role.
- */
 function scopeWhere(user, query) {
   const where = {};
 
@@ -31,11 +28,11 @@ function paymentScope(user, query) {
   if (user.role === 'affiliate') {
     return { affiliateId: user.id };
   }
-  return null; // workers don't see payments
+  return null;
 }
 
 /**
- * Summary card metrics.
+ * Summary — now uses Sale.totalGross / Sale.totalCommission.
  */
 async function summary(user, query) {
   const where = scopeWhere(user, query);
@@ -46,8 +43,8 @@ async function summary(user, query) {
   const [completedAgg] = await Sale.findAll({
     where: completedWhere,
     attributes: [
-      [fn('COALESCE', fn('SUM', col('gross_amount')), 0), 'gross'],
-      [fn('COALESCE', fn('SUM', col('commission_amount')), 0), 'commission'],
+      [fn('COALESCE', fn('SUM', col('total_gross')), 0), 'gross'],
+      [fn('COALESCE', fn('SUM', col('total_commission')), 0), 'commission'],
       [fn('COUNT', col('id')), 'count'],
     ],
     raw: true,
@@ -56,7 +53,7 @@ async function summary(user, query) {
   const [pendingAgg] = await Sale.findAll({
     where: pendingWhere,
     attributes: [
-      [fn('COALESCE', fn('SUM', col('commission_amount')), 0), 'commission'],
+      [fn('COALESCE', fn('SUM', col('total_commission')), 0), 'commission'],
       [fn('COUNT', col('id')), 'count'],
     ],
     raw: true,
@@ -90,20 +87,18 @@ async function summary(user, query) {
 }
 
 /**
- * Sales by product.
- * Groups by affiliateProductId, then joins through to Product for the name.
+ * Sales by product — now aggregates from sale_items.
  */
 async function byProduct(user, query) {
   const where = scopeWhere(user, query);
   where.status = 'completed';
 
-  const rows = await Sale.findAll({
-    where,
+  const rows = await SaleItem.findAll({
     attributes: [
       'affiliateProductId',
-      [fn('COUNT', col('Sale.id')), 'orders'],
-      [fn('COALESCE', fn('SUM', col('gross_amount')), 0), 'gross'],
-      [fn('COALESCE', fn('SUM', col('commission_amount')), 0), 'commission'],
+      [fn('COUNT', col('SaleItem.id')), 'orders'],
+      [fn('COALESCE', fn('SUM', col('SaleItem.gross_amount')), 0), 'gross'],
+      [fn('COALESCE', fn('SUM', col('SaleItem.commission_amount')), 0), 'commission'],
     ],
     include: [
       {
@@ -114,9 +109,16 @@ async function byProduct(user, query) {
           { model: Product, as: 'product', attributes: ['id', 'name', 'description'] },
         ],
       },
+      {
+        model: Sale,
+        as: 'sale',
+        attributes: [],
+        where,
+        required: true,
+      },
     ],
     group: [
-      'Sale.affiliate_product_id',
+      'SaleItem.affiliate_product_id',
       'affiliateProduct.id',
       'affiliateProduct->product.id',
     ],
@@ -140,7 +142,7 @@ async function byProduct(user, query) {
 }
 
 /**
- * Revenue over time — one row per day.
+ * Revenue over time — one row per day (sale-level totals).
  */
 async function timeline(user, query) {
   const where = scopeWhere(user, query);
@@ -150,8 +152,8 @@ async function timeline(user, query) {
     where,
     attributes: [
       [fn('DATE', col('created_at')), 'day'],
-      [fn('COALESCE', fn('SUM', col('gross_amount')), 0), 'gross'],
-      [fn('COALESCE', fn('SUM', col('commission_amount')), 0), 'commission'],
+      [fn('COALESCE', fn('SUM', col('total_gross')), 0), 'gross'],
+      [fn('COALESCE', fn('SUM', col('total_commission')), 0), 'commission'],
     ],
     group: [fn('DATE', col('created_at'))],
     order: [[literal('day'), 'ASC']],
@@ -166,7 +168,7 @@ async function timeline(user, query) {
 }
 
 /**
- * Ledger — paginated sale rows.
+ * Ledger — paginated sale rows with item count.
  */
 async function ledger(user, query) {
   const where = scopeWhere(user, query);
@@ -179,36 +181,51 @@ async function ledger(user, query) {
     where,
     include: [
       {
-        model: AffiliateProduct,
-        as: 'affiliateProduct',
-        include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+        model: SaleItem,
+        as: 'items',
+        attributes: ['id', 'quantity', 'grossAmount', 'commissionAmount'],
+        required: false,
+        include: [
+          {
+            model: AffiliateProduct,
+            as: 'affiliateProduct',
+            attributes: ['id'],
+            required: false,
+            include: [
+              { model: Product, as: 'product', attributes: ['id', 'name'], required: false },
+            ],
+          },
+        ],
       },
     ],
     order: [['createdAt', 'DESC']],
     limit,
     offset,
+    distinct: true,
   });
 
   return {
     items: rows.map((s) => ({
       id: s.id,
       ref: s.ref,
-      product: s.affiliateProduct?.product
-        ? { id: s.affiliateProduct.product.id, name: s.affiliateProduct.product.name }
-        : null,
-      quantity: s.quantity,
-      grossAmount: Number(s.grossAmount),
-      commissionAmount: Number(s.commissionAmount),
+      totalGross: Number(s.totalGross),
+      totalCommission: Number(s.totalCommission),
       status: s.status,
       date: s.createdAt,
+      itemCount: Array.isArray(s.items) ? s.items.length : 0,
+      items: Array.isArray(s.items)
+        ? s.items.map((it) => ({
+            productName: it.affiliateProduct?.product?.name || null,
+            quantity: it.quantity,
+            grossAmount: Number(it.grossAmount),
+            commissionAmount: Number(it.commissionAmount),
+          }))
+        : [],
     })),
     pagination: { page, limit, total: count, pages: Math.ceil(count / limit) },
   };
 }
 
-/**
- * Payments list for the affiliate.
- */
 async function payments(user, query) {
   const scope = paymentScope(user, query);
   if (!scope) return { items: [], pagination: { page: 1, limit: 0, total: 0, pages: 0 } };
@@ -244,9 +261,6 @@ async function payments(user, query) {
   };
 }
 
-/**
- * One-shot overview (for initial dashboard load).
- */
 async function overview(user, query) {
   const [summaryData, byProductData, timelineData, ledgerData, paymentsData] =
     await Promise.all([

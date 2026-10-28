@@ -1,50 +1,61 @@
 const { Op } = require('sequelize');
-const { sequelize, Sale, AffiliateProduct, Product, User } = require('../models');
+const { sequelize, Sale, SaleItem, AffiliateProduct, Product, User } = require('../models');
 const { ok, fail } = require('../utils/response');
 const { saleRef } = require('../utils/refs');
-const { decrementStock, restoreStock } = require('../services/stock.service');
+const {
+  decrementStockBatch,
+  restoreStockBatch,
+} = require('../services/stock.service');
 const { ensureSaleVerificationToken } = require('../services/saleQr.service');
+
+const serializeItem = (item) => ({
+  id: item.id,
+  affiliateProductId: item.affiliateProductId,
+  quantity: item.quantity,
+  unitPrice: Number(item.unitPrice),
+  grossAmount: Number(item.grossAmount),
+  commissionPercent: Number(item.commissionPercent),
+  commissionAmount: Number(item.commissionAmount),
+  product: item.affiliateProduct?.product
+    ? {
+        id: item.affiliateProduct.product.id,
+        name: item.affiliateProduct.product.name,
+      }
+    : null,
+});
 
 const serialize = (s) => ({
   id: s.id,
   ref: s.ref,
-  affiliateProductId: s.affiliateProductId,
-  affiliateProduct: s.affiliateProduct
-    ? {
-        id: s.affiliateProduct.id,
-        product: s.affiliateProduct.product
-          ? {
-              id: s.affiliateProduct.product.id,
-              name: s.affiliateProduct.product.name,
-            }
-          : null,
-      }
-    : undefined,
   affiliateId: s.affiliateId,
   loggedByUserId: s.loggedByUserId,
-  quantity: s.quantity,
-  unitPrice: Number(s.unitPrice),
-  grossAmount: Number(s.grossAmount),
-  commissionPercent: Number(s.commissionPercent),
-  commissionAmount: Number(s.commissionAmount),
+  totalGross: Number(s.totalGross),
+  totalCommission: Number(s.totalCommission),
   status: s.status,
   verificationToken: s.verificationToken || null,
   createdAt: s.createdAt,
   updatedAt: s.updatedAt,
+  items: Array.isArray(s.items) ? s.items.map(serializeItem) : [],
 });
 
 const fullInclude = [
   {
-    model: AffiliateProduct,
-    as: 'affiliateProduct',
-    include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+    model: SaleItem,
+    as: 'items',
+    include: [
+      {
+        model: AffiliateProduct,
+        as: 'affiliateProduct',
+        include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+      },
+    ],
   },
 ];
 
 // POST /api/affiliate/sales   (affiliate or worker)
+// Body: { items: [{ affiliateProductId, quantity }, ...] }
 exports.createSale = async (req, res) => {
-  const { affiliateProductId, quantity } = req.body;
-  const qty = parseInt(quantity, 10);
+  const { items } = req.body;
 
   const affiliateId =
     req.user.role === 'worker' ? req.user.parentAffiliateId : req.user.id;
@@ -52,39 +63,83 @@ exports.createSale = async (req, res) => {
     return fail(res, 'Could not resolve affiliate for this user', 400);
   }
 
-  const ap = await AffiliateProduct.findByPk(affiliateProductId, {
+  // 1. Fetch all affiliate products referenced by the items
+  const ids = items.map((i) => i.affiliateProductId);
+  const aps = await AffiliateProduct.findAll({
+    where: { id: { [Op.in]: ids } },
     include: [{ model: Product, as: 'product' }],
   });
-  if (!ap || !ap.isActive) {
-    return fail(res, 'Affiliate product not found or inactive', 404);
+  const apMap = new Map(aps.map((ap) => [ap.id, ap]));
+
+  // 2. Validate every item belongs to this affiliate and is active
+  for (const item of items) {
+    const ap = apMap.get(item.affiliateProductId);
+    if (!ap || !ap.isActive) {
+      return fail(
+        res,
+        `Affiliate product ${item.affiliateProductId} not found or inactive`,
+        404
+      );
+    }
+    if (ap.affiliateId !== affiliateId) {
+      return fail(
+        res,
+        `Forbidden: product ${item.affiliateProductId} not assigned to this affiliate`,
+        403
+      );
+    }
   }
 
-  if (ap.affiliateId !== affiliateId) {
-    return fail(res, 'Forbidden: product not assigned to this affiliate', 403);
-  }
+  // 3. Compute line totals + sale totals
+  let totalGross = 0;
+  let totalCommission = 0;
+  const itemData = items.map((item) => {
+    const ap = apMap.get(item.affiliateProductId);
+    const quantity = parseInt(item.quantity, 10);
+    const unitPrice = Number(ap.product.price);
+    const commissionPercent = Number(ap.commissionPercent);
+    const grossAmount = +(unitPrice * quantity).toFixed(2);
+    const commissionAmount = +((grossAmount * commissionPercent) / 100).toFixed(2);
+    totalGross += grossAmount;
+    totalCommission += commissionAmount;
+    return {
+      affiliateProductId: item.affiliateProductId,
+      quantity,
+      unitPrice,
+      grossAmount,
+      commissionPercent,
+      commissionAmount,
+    };
+  });
 
-  const unitPrice = Number(ap.product.price);
-  const commissionPercent = Number(ap.commissionPercent);
-  const grossAmount = +(unitPrice * qty).toFixed(2);
-  const commissionAmount = +((grossAmount * commissionPercent) / 100).toFixed(2);
+  totalGross = +totalGross.toFixed(2);
+  totalCommission = +totalCommission.toFixed(2);
 
+  // 4. Atomic: decrement stock for all items + create sale + items
   const t = await sequelize.transaction();
   try {
-    await decrementStock(affiliateProductId, qty, { transaction: t });
+    await decrementStockBatch(
+      items.map((i) => ({
+        affiliateProductId: i.affiliateProductId,
+        quantity: parseInt(i.quantity, 10),
+      })),
+      { transaction: t }
+    );
 
     const sale = await Sale.create(
       {
         ref: saleRef(),
-        affiliateProductId,
         affiliateId,
         loggedByUserId: req.user.id,
-        quantity: qty,
-        unitPrice,
-        grossAmount,
-        commissionPercent,
-        commissionAmount,
+        totalGross,
+        totalCommission,
         status: 'pending',
       },
+      { transaction: t }
+    );
+
+    await SaleItem.bulkCreate(
+      itemData.map((d) => ({ ...d, saleId: sale.id })),
       { transaction: t }
     );
 
@@ -118,25 +173,39 @@ exports.listSales = async (req, res) => {
   }
 
   if (status) where.status = status;
-  if (affiliateProductId) where.affiliateProductId = affiliateProductId;
   if (from || to) {
     where.createdAt = {};
     if (from) where.createdAt[Op.gte] = new Date(from);
     if (to) where.createdAt[Op.lte] = new Date(to);
   }
 
-  const include = [...fullInclude];
-  if (productId) {
-    include[0].where = { productId };
-    include[0].required = true;
-  }
+  // If item-level filters are present, require matching items
+  const itemWhere = {};
+  if (affiliateProductId) itemWhere.affiliateProductId = affiliateProductId;
+
+  const itemInclude = {
+    model: SaleItem,
+    as: 'items',
+    required: !!(affiliateProductId || productId),
+    where: affiliateProductId ? itemWhere : undefined,
+    include: [
+      {
+        model: AffiliateProduct,
+        as: 'affiliateProduct',
+        where: productId ? { productId } : undefined,
+        required: !!productId,
+        include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }],
+      },
+    ],
+  };
 
   const { rows, count } = await Sale.findAndCountAll({
     where,
-    include,
+    include: [itemInclude],
     order: [['createdAt', 'DESC']],
     limit,
     offset,
+    distinct: true,
   });
 
   return ok(res, {
@@ -164,7 +233,7 @@ exports.getSale = async (req, res) => {
 exports.updateStatus = async (req, res) => {
   const { status } = req.body;
 
-  const sale = await Sale.findByPk(req.params.id);
+  const sale = await Sale.findByPk(req.params.id, { include: fullInclude });
   if (!sale) return fail(res, 'Sale not found', 404);
 
   const owns =
@@ -173,16 +242,11 @@ exports.updateStatus = async (req, res) => {
   if (!owns) return fail(res, 'Forbidden', 403);
 
   if (sale.status === status) {
-    // Idempotent: if already completed and has a token, return it
     if (status === 'completed' && sale.verificationToken) {
       const token = await ensureSaleVerificationToken(sale.id);
-      await sale.reload({ include: fullInclude });
       return ok(
         res,
-        {
-          ...serialize(sale),
-          verificationUrl: token.verificationUrl,
-        },
+        { ...serialize(sale), verificationUrl: token.verificationUrl },
         `Sale already ${status}`
       );
     }
@@ -196,7 +260,11 @@ exports.updateStatus = async (req, res) => {
   if (status === 'refunded') {
     const t = await sequelize.transaction();
     try {
-      await restoreStock(sale.affiliateProductId, sale.quantity, { transaction: t });
+      const items = (sale.items || []).map((it) => ({
+        affiliateProductId: it.affiliateProductId,
+        quantity: it.quantity,
+      }));
+      await restoreStockBatch(items, { transaction: t });
       sale.status = 'refunded';
       await sale.save({ transaction: t });
       await t.commit();
@@ -209,7 +277,6 @@ exports.updateStatus = async (req, res) => {
   }
 
   if (status === 'completed') {
-    // Generate verification token for this sale
     const tokenInfo = await ensureSaleVerificationToken(sale.id);
     sale.status = 'completed';
     await sale.save();
@@ -217,10 +284,7 @@ exports.updateStatus = async (req, res) => {
 
     return ok(
       res,
-      {
-        ...serialize(sale),
-        verificationUrl: tokenInfo.verificationUrl,
-      },
+      { ...serialize(sale), verificationUrl: tokenInfo.verificationUrl },
       'Sale completed'
     );
   }

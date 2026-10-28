@@ -1,8 +1,18 @@
 const { body, param, query } = require('express-validator');
 
+// POST /sales — body now has an array of items
 const createRules = [
-  body('affiliateProductId').isUUID().withMessage('Valid affiliateProductId required'),
-  body('quantity').isInt({ min: 1 }).withMessage('Quantity must be >= 1'),
+  body('items')
+    .isArray({ min: 1 })
+    .withMessage('items must be a non-empty array'),
+
+  body('items.*.affiliateProductId')
+    .isUUID()
+    .withMessage('Each item requires a valid affiliateProductId'),
+
+  body('items.*.quantity')
+    .isInt({ min: 1 })
+    .withMessage('Each item requires quantity >= 1'),
 ];
 
 const statusRules = [

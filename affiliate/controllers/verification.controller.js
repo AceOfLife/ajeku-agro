@@ -1,5 +1,5 @@
 const { Op, fn, col } = require('sequelize');
-const { Verification, Buyer, Sale, User, AffiliateProduct, Product } = require('../models');
+const { Verification, Buyer, Sale, SaleItem, User, AffiliateProduct, Product } = require('../models');
 const { ok, fail } = require('../utils/response');
 const crypto = require('crypto');
 
@@ -20,24 +20,42 @@ const serializeVerification = (v) => ({
 const saleInclude = {
   model: Sale,
   as: 'sale',
-  attributes: ['id', 'ref', 'quantity', 'grossAmount', 'status', 'createdAt'],
+  attributes: ['id', 'ref', 'totalGross', 'totalCommission', 'status', 'createdAt'],
   required: false,
   include: [
     {
-      model: AffiliateProduct,
-      as: 'affiliateProduct',
-      attributes: ['id'],
+      model: SaleItem,
+      as: 'items',
+      attributes: ['id', 'quantity', 'unitPrice', 'grossAmount'],
       required: false,
       include: [
         {
-          model: Product,
-          as: 'product',
-          attributes: ['id', 'name', 'description'],
+          model: AffiliateProduct,
+          as: 'affiliateProduct',
+          attributes: ['id'],
           required: false,
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name'],
+              required: false,
+            },
+          ],
         },
       ],
     },
   ],
+};
+
+const serializeSaleItems = (sale) => {
+  if (!sale || !Array.isArray(sale.items)) return [];
+  return sale.items.map((it) => ({
+    productName: it.affiliateProduct?.product?.name || null,
+    quantity: it.quantity,
+    unitPrice: Number(it.unitPrice),
+    lineTotal: Number(it.grossAmount),
+  }));
 };
 
 // ===============================================================
@@ -51,16 +69,24 @@ exports.publicGetForm = async (req, res) => {
       where: { verificationToken: req.params.token },
       include: [
         {
-          model: AffiliateProduct,
-          as: 'affiliateProduct',
-          attributes: ['id'],
+          model: SaleItem,
+          as: 'items',
+          attributes: ['id', 'quantity', 'unitPrice', 'grossAmount'],
           required: false,
           include: [
             {
-              model: Product,
-              as: 'product',
-              attributes: ['id', 'name'],
+              model: AffiliateProduct,
+              as: 'affiliateProduct',
+              attributes: ['id'],
               required: false,
+              include: [
+                {
+                  model: Product,
+                  as: 'product',
+                  attributes: ['id', 'name'],
+                  required: false,
+                },
+              ],
             },
           ],
         },
@@ -83,15 +109,12 @@ exports.publicGetForm = async (req, res) => {
       status = existing ? 'verified' : 'unverified';
     }
 
-    const product = sale.affiliateProduct?.product;
-
     return ok(res, {
       saleRef: sale.ref,
-      productName: product ? product.name : null,
-      quantity: sale.quantity,
-      grossAmount: Number(sale.grossAmount),
-      currency: 'NGN',
       affiliateName: sale.affiliate ? sale.affiliate.name : null,
+      items: serializeSaleItems(sale),
+      totalGross: Number(sale.totalGross),
+      currency: 'NGN',
       status,
     });
   } catch (err) {
@@ -114,16 +137,24 @@ exports.publicSubmitForm = async (req, res) => {
       where: { verificationToken: token },
       include: [
         {
-          model: AffiliateProduct,
-          as: 'affiliateProduct',
-          attributes: ['id'],
+          model: SaleItem,
+          as: 'items',
+          attributes: ['id', 'quantity', 'unitPrice', 'grossAmount'],
           required: false,
           include: [
             {
-              model: Product,
-              as: 'product',
-              attributes: ['id', 'name'],
+              model: AffiliateProduct,
+              as: 'affiliateProduct',
+              attributes: ['id'],
               required: false,
+              include: [
+                {
+                  model: Product,
+                  as: 'product',
+                  attributes: ['id', 'name'],
+                  required: false,
+                },
+              ],
             },
           ],
         },
@@ -214,7 +245,6 @@ exports.publicSubmitForm = async (req, res) => {
       lastUserAgent: userAgent,
     });
 
-    const product = sale.affiliateProduct?.product;
     const affiliateName = sale.affiliate?.name || 'the affiliate';
 
     return ok(
@@ -222,9 +252,8 @@ exports.publicSubmitForm = async (req, res) => {
       {
         buyerToken: buyer.buyerToken,
         affiliateName: sale.affiliate?.name || null,
-        productName: product ? product.name : null,
-        quantity: sale.quantity,
-        grossAmount: Number(sale.grossAmount),
+        items: serializeSaleItems(sale),
+        totalGross: Number(sale.totalGross),
         currency: 'NGN',
       },
       `Thanks for buying from ${affiliateName}`
@@ -268,15 +297,9 @@ exports.listMyVerifications = async (req, res) => {
           ? {
               id: v.sale.id,
               ref: v.sale.ref,
-              quantity: v.sale.quantity,
-              grossAmount: Number(v.sale.grossAmount),
+              totalGross: Number(v.sale.totalGross),
               status: v.sale.status,
-              product: v.sale.affiliateProduct?.product
-                ? {
-                    id: v.sale.affiliateProduct.product.id,
-                    name: v.sale.affiliateProduct.product.name,
-                  }
-                : null,
+              items: serializeSaleItems(v.sale),
             }
           : null,
       })),
@@ -334,15 +357,9 @@ exports.adminListVerifications = async (req, res) => {
           ? {
               id: v.sale.id,
               ref: v.sale.ref,
-              quantity: v.sale.quantity,
-              grossAmount: Number(v.sale.grossAmount),
+              totalGross: Number(v.sale.totalGross),
               status: v.sale.status,
-              product: v.sale.affiliateProduct?.product
-                ? {
-                    id: v.sale.affiliateProduct.product.id,
-                    name: v.sale.affiliateProduct.product.name,
-                  }
-                : null,
+              items: serializeSaleItems(v.sale),
             }
           : null,
       })),

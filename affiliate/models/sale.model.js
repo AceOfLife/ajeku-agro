@@ -8,18 +8,18 @@ module.exports = (sequelize, DataTypes) => {
         primaryKey: true,
       },
       ref: { type: DataTypes.STRING, allowNull: false, unique: true },
-      affiliateProductId: { type: DataTypes.UUID, allowNull: false },
       affiliateId: { type: DataTypes.UUID, allowNull: false },        // commission owner
       loggedByUserId: { type: DataTypes.UUID, allowNull: false },     // worker or partner
-      quantity: {
-        type: DataTypes.INTEGER,
+      totalGross: {
+        type: DataTypes.DECIMAL(12, 2),
         allowNull: false,
-        validate: { min: 1 },
+        defaultValue: 0,
       },
-      unitPrice: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
-      grossAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
-      commissionPercent: { type: DataTypes.DECIMAL(5, 2), allowNull: false },
-      commissionAmount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+      totalCommission: {
+        type: DataTypes.DECIMAL(12, 2),
+        allowNull: false,
+        defaultValue: 0,
+      },
       status: {
         type: DataTypes.ENUM('pending', 'completed', 'refunded'),
         allowNull: false,

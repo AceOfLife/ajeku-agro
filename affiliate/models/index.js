@@ -5,6 +5,7 @@ const User = require('./user.model')(sequelize, DataTypes);
 const Product = require('./product.model')(sequelize, DataTypes);
 const AffiliateProduct = require('./affiliateProduct.model')(sequelize, DataTypes);
 const Sale = require('./sale.model')(sequelize, DataTypes);
+const SaleItem = require('./saleItem.model')(sequelize, DataTypes);
 const Payment = require('./payment.model')(sequelize, DataTypes);
 const Buyer = require('./buyer.model')(sequelize, DataTypes);
 const Verification = require('./verification.model')(sequelize, DataTypes);
@@ -24,15 +25,19 @@ AffiliateProduct.belongsTo(User, { foreignKey: 'affiliateId', as: 'affiliate' })
 Product.hasMany(AffiliateProduct, { foreignKey: 'productId', as: 'affiliateProducts' });
 AffiliateProduct.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
 
-// Sales — reference the affiliate_product assignment
-AffiliateProduct.hasMany(Sale, { foreignKey: 'affiliateProductId', as: 'sales' });
-Sale.belongsTo(AffiliateProduct, { foreignKey: 'affiliateProductId', as: 'affiliateProduct' });
-
+// Sales — the transaction
 User.hasMany(Sale, { foreignKey: 'affiliateId', as: 'sales' });      // partner owns commission
 Sale.belongsTo(User, { foreignKey: 'affiliateId', as: 'affiliate' });
 
 User.hasMany(Sale, { foreignKey: 'loggedByUserId', as: 'loggedSales' });
 Sale.belongsTo(User, { foreignKey: 'loggedByUserId', as: 'loggedBy' });
+
+// SaleItems — line items of a sale
+Sale.hasMany(SaleItem, { foreignKey: 'saleId', as: 'items' });
+SaleItem.belongsTo(Sale, { foreignKey: 'saleId', as: 'sale' });
+
+AffiliateProduct.hasMany(SaleItem, { foreignKey: 'affiliateProductId', as: 'saleItems' });
+SaleItem.belongsTo(AffiliateProduct, { foreignKey: 'affiliateProductId', as: 'affiliateProduct' });
 
 // Payments
 User.hasMany(Payment, { foreignKey: 'affiliateId', as: 'payments' });
@@ -61,6 +66,7 @@ module.exports = {
   Product,
   AffiliateProduct,
   Sale,
+  SaleItem,
   Payment,
   Buyer,
   Verification,
