@@ -77,6 +77,10 @@ exports.publicGetForm = async (req, res) => {
       return fail(res, 'Sale not yet completed', 400);
     }
 
+    const existingVerification = await Verification.findOne({
+      where: { saleId: sale.id },
+    });
+
     const product = sale.affiliateProduct?.product;
 
     return ok(res, {
@@ -86,6 +90,7 @@ exports.publicGetForm = async (req, res) => {
       grossAmount: Number(sale.grossAmount),
       currency: 'NGN',
       affiliateName: sale.affiliate ? sale.affiliate.name : null,
+      alreadyVerified: !!existingVerification,
     });
   } catch (err) {
     console.error('[verify] publicGetForm error:', err);
@@ -97,6 +102,7 @@ exports.publicGetForm = async (req, res) => {
 // Two modes:
 //   { name, email }  → first-time buyer
 //   { buyerToken }   → repeat buyer (skips form)
+// A sale can only be verified ONCE. Subsequent attempts → 409.
 exports.publicSubmitForm = async (req, res) => {
   try {
     const { token } = req.params;
@@ -132,6 +138,14 @@ exports.publicSubmitForm = async (req, res) => {
       return fail(res, 'Sale not yet completed', 400);
     }
 
+    // ── Reject if this sale is already verified ─────────────────
+    const existingVerification = await Verification.findOne({
+      where: { saleId: sale.id },
+    });
+    if (existingVerification) {
+      return fail(res, 'This sale has already been verified', 409);
+    }
+
     const now = new Date();
     const ip =
       (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
@@ -162,13 +176,11 @@ exports.publicSubmitForm = async (req, res) => {
       const normalizedEmail = String(email).toLowerCase().trim();
       const safeName = String(name).trim();
 
-      // Find existing buyer for this affiliate, or create new
       buyer = await Buyer.findOne({
         where: { affiliateId: sale.affiliateId, email: normalizedEmail },
       });
 
       if (buyer) {
-        // Returning buyer on a new device — update their record
         buyer.name = safeName;
         buyer.scanCount += 1;
         buyer.lastSeenAt = now;
@@ -186,31 +198,19 @@ exports.publicSubmitForm = async (req, res) => {
       }
     }
 
-    // ── Create or update verification for this sale ─────────────
-    const existingVerification = await Verification.findOne({
-      where: { saleId: sale.id, buyerId: buyer.id },
+    // ── Create the verification row (guaranteed unique per sale) ─
+    await Verification.create({
+      affiliateId: sale.affiliateId,
+      saleId: sale.id,
+      buyerId: buyer.id,
+      name: buyer.name,
+      email: buyer.email,
+      scanCount: 1,
+      firstSeenAt: now,
+      lastSeenAt: now,
+      lastIp: ip,
+      lastUserAgent: userAgent,
     });
-
-    if (existingVerification) {
-      existingVerification.scanCount += 1;
-      existingVerification.lastSeenAt = now;
-      existingVerification.lastIp = ip;
-      existingVerification.lastUserAgent = userAgent;
-      await existingVerification.save();
-    } else {
-      await Verification.create({
-        affiliateId: sale.affiliateId,
-        saleId: sale.id,
-        buyerId: buyer.id,
-        name: buyer.name,
-        email: buyer.email,
-        scanCount: 1,
-        firstSeenAt: now,
-        lastSeenAt: now,
-        lastIp: ip,
-        lastUserAgent: userAgent,
-      });
-    }
 
     const product = sale.affiliateProduct?.product;
     const affiliateName = sale.affiliate?.name || 'the affiliate';

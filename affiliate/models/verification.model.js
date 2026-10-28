@@ -41,8 +41,8 @@ module.exports = (sequelize, DataTypes) => {
         },
         {
           unique: true,
-          fields: ['sale_id', 'buyer_id'],
-          name: 'affiliate_verifications_unique_sale_buyer',
+          fields: ['sale_id'],
+          name: 'affiliate_verifications_unique_sale',
         },
       ],
     }
